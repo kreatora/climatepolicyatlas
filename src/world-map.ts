@@ -113,18 +113,47 @@ function resolveTargetProgressionLabelLayout(opts: {
 
 type TargetLineStyleLegendOptions = {
     x: number;
-    y: number;
+    /** Bottom edge of the legend box (it grows upward). */
+    bottom: number;
     lineColor?: string;
 };
+
+/** Marker styles: open circle = year target was set, filled circle = target deadline. */
+const TARGET_MARKER_RADIUS = 5;
+const TARGET_MARKER_HOVER_RADIUS = 7;
+
+function styleTargetDecisionMarker(
+    circle: d3.Selection<SVGCircleElement, any, any, any>,
+    color: string
+) {
+    circle
+        .attr('r', TARGET_MARKER_RADIUS)
+        .style('fill', '#f8fafc')
+        .style('stroke', color)
+        .style('stroke-width', 2);
+}
+
+function styleTargetDeadlineMarker(
+    circle: d3.Selection<SVGCircleElement, any, any, any>,
+    color: string
+) {
+    circle
+        .attr('r', TARGET_MARKER_RADIUS)
+        .style('fill', color)
+        .style('stroke', '#fff')
+        .style('stroke-width', 1.5);
+}
 
 function appendTargetLineStyleLegend(
     parent: d3.Selection<SVGSVGElement | SVGGElement, unknown, null, undefined>,
     opts: TargetLineStyleLegendOptions
 ) {
     const color = opts.lineColor ?? '#64748b';
-    const items = [
-        { label: 'Active target', strokeWidth: 3, dasharray: null as string | null },
+    const items: { label: string; strokeWidth?: number; dasharray?: string | null; opacity?: number; marker?: 'decision' | 'deadline' }[] = [
+        { label: 'Active target', strokeWidth: 3, dasharray: null },
         { label: 'Superseded or expired', strokeWidth: 3, dasharray: '4,3', opacity: 0.5 },
+        { label: 'Year target was set', marker: 'decision' },
+        { label: 'Target deadline', marker: 'deadline' },
     ];
 
     const rowHeight = 14;
@@ -133,7 +162,7 @@ function appendTargetLineStyleLegend(
 
     const legendG = parent.append('g')
         .attr('class', 'target-line-style-legend')
-        .attr('transform', `translate(${opts.x}, ${opts.y})`);
+        .attr('transform', `translate(${opts.x}, ${opts.bottom - boxHeight})`);
 
     legendG.append('rect')
         .attr('width', boxWidth)
@@ -146,15 +175,21 @@ function appendTargetLineStyleLegend(
     items.forEach((item, i) => {
         const rowY = 6 + i * rowHeight;
         const row = legendG.append('g').attr('transform', `translate(8, ${rowY})`);
-        row.append('line')
-            .attr('x1', 0)
-            .attr('x2', 18)
-            .attr('y1', 0)
-            .attr('y2', 0)
-            .style('stroke', color)
-            .style('stroke-width', item.strokeWidth)
-            .style('stroke-dasharray', item.dasharray)
-            .style('opacity', item.opacity ?? 1);
+        if (item.marker) {
+            const marker = row.append('circle').attr('cx', 9).attr('cy', 0);
+            if (item.marker === 'decision') styleTargetDecisionMarker(marker, color);
+            else styleTargetDeadlineMarker(marker, color);
+        } else {
+            row.append('line')
+                .attr('x1', 0)
+                .attr('x2', 18)
+                .attr('y1', 0)
+                .attr('y2', 0)
+                .style('stroke', color)
+                .style('stroke-width', item.strokeWidth ?? 3)
+                .style('stroke-dasharray', item.dasharray ?? null)
+                .style('opacity', item.opacity ?? 1);
+        }
         row.append('text')
             .attr('x', 24)
             .attr('y', 0)
@@ -2436,6 +2471,7 @@ const fmt1 = (v: any) => {
                             `<strong>How to read this chart</strong><br>` +
                             `Each <strong>line</strong> connects a decision year to a target year.<br>` +
                             `The <strong>vertical axis</strong> shows % change compared to the 1990 emissions baseline.<br>` +
+                            `An <strong>open circle</strong> marks the year a target was set; a <strong>filled circle</strong> marks its deadline.<br>` +
                             `<span style="color:#94a3b8">Hover over any circle or line for details.</span>`
                             );
                         infoG.on('mouseenter', () => htrtcTip.style('visibility', 'visible'))
@@ -2630,13 +2666,10 @@ const fmt1 = (v: any) => {
                         g.append('circle')
                             .attr('cx', xScale(target.decisionYear))
                             .attr('cy', yScale(target.targetValue))
-                            .attr('r', 5)
-                            .style('fill', climateColor)
-                            .style('stroke', '#fff')
-                            .style('stroke-width', 2)
+                            .call(styleTargetDecisionMarker, climateColor)
                             .style('cursor', 'pointer')
                             .on('mouseenter', function(event: any) {
-                                d3.select(this).transition().duration(100).attr('r', 7);
+                                d3.select(this).transition().duration(100).attr('r', TARGET_MARKER_HOVER_RADIUS);
                                 const [mouseX, mouseY] = d3.pointer(event, targetsContainer);
                                 tooltip
                                     .style('visibility', 'visible')
@@ -2645,7 +2678,7 @@ const fmt1 = (v: any) => {
                                     .style('left', (mouseX + 10) + 'px');
                             })
                             .on('mouseleave', function() {
-                                d3.select(this).transition().duration(100).attr('r', 5);
+                                d3.select(this).transition().duration(100).attr('r', TARGET_MARKER_RADIUS);
                                 tooltip.style('visibility', 'hidden');
                             });
                         
@@ -2672,13 +2705,10 @@ const fmt1 = (v: any) => {
                             g.append('circle')
                                 .attr('cx', xScale(target.targetYear))
                                 .attr('cy', yScale(target.targetValue))
-                                .attr('r', 6)
-                                .style('fill', climateColor)
-                                .style('stroke', '#fff')
-                                .style('stroke-width', 2)
+                                .call(styleTargetDeadlineMarker, climateColor)
                                 .style('cursor', 'pointer')
                                 .on('mouseenter', function(event: any) {
-                                    d3.select(this).transition().duration(100).attr('r', 8);
+                                    d3.select(this).transition().duration(100).attr('r', TARGET_MARKER_HOVER_RADIUS);
                                     const [mouseX, mouseY] = d3.pointer(event, targetsContainer);
                                     tooltip
                                         .style('visibility', 'visible')
@@ -2687,7 +2717,7 @@ const fmt1 = (v: any) => {
                                         .style('left', (mouseX + 10) + 'px');
                                 })
                                 .on('mouseleave', function() {
-                                    d3.select(this).transition().duration(100).attr('r', 6);
+                                    d3.select(this).transition().duration(100).attr('r', TARGET_MARKER_RADIUS);
                                     tooltip.style('visibility', 'hidden');
                                 });
                             
@@ -2714,7 +2744,7 @@ const fmt1 = (v: any) => {
 
                     appendTargetLineStyleLegend(svg, {
                         x: margin.left + width - 168,
-                        y: margin.top + height - 48,
+                        bottom: margin.top + height - 12,
                         lineColor: '#7c3aed',
                     });
                 } else {
@@ -2808,7 +2838,7 @@ const fmt1 = (v: any) => {
                             `<strong>How to read this chart</strong><br>` +
                             `Each <strong>line</strong> connects a decision year to a target year.<br>` +
                             `The <strong>vertical axis</strong> shows the target percentage (e.g. share of renewables).<br>` +
-                            `Circle size reflects how ambitious the target is.<br>` +
+                            `An <strong>open circle</strong> marks the year a target was set; a <strong>filled circle</strong> marks its deadline.<br>` +
                             `<span style="color:#94a3b8">Hover over any circle or line for details.</span>`
                         );
                     infoG.on('mouseenter', () => htrtcTip.style('visibility', 'visible'))
@@ -3029,15 +3059,12 @@ const fmt1 = (v: any) => {
                         .attr('data-target-type', target.targetType)
                         .attr('cx', xScale(target.decisionYear))
                         .attr('cy', yScale(target.targetValue))
-                        .attr('r', 5)
-                        .style('fill', color)
-                        .style('stroke', '#fff')
-                        .style('stroke-width', 2)
+                        .call(styleTargetDecisionMarker, color)
                         .style('opacity', shouldBeVisible(target.targetType) ? 1 : 0)
                         .style('pointer-events', shouldBeVisible(target.targetType) ? 'auto' : 'none')
                         .style('cursor', 'pointer')
                         .on('mouseenter', function(event: any) {
-                            d3.select(this).transition().duration(100).attr('r', 7);
+                            d3.select(this).transition().duration(100).attr('r', TARGET_MARKER_HOVER_RADIUS);
                             const [mouseX, mouseY] = d3.pointer(event, targetsContainer);
                             tooltip
                                 .style('visibility', 'visible')
@@ -3052,7 +3079,7 @@ const fmt1 = (v: any) => {
                                 .style('left', (mouseX + 10) + 'px');
                         })
                         .on('mouseleave', function() {
-                            d3.select(this).transition().duration(100).attr('r', 5);
+                            d3.select(this).transition().duration(100).attr('r', TARGET_MARKER_RADIUS);
                             tooltip.style('visibility', 'hidden');
                         });
                     
@@ -3155,15 +3182,12 @@ const fmt1 = (v: any) => {
                             .attr('data-target-type', target.targetType)
                             .attr('cx', xScale(endYear))
                             .attr('cy', yScale(target.targetValue))
-                            .attr('r', 6)
-                            .style('fill', color)
-                            .style('stroke', '#fff')
-                            .style('stroke-width', 2)
+                            .call(styleTargetDeadlineMarker, color)
                             .style('opacity', shouldBeVisible(target.targetType) ? 1 : 0)
                             .style('pointer-events', shouldBeVisible(target.targetType) ? 'auto' : 'none')
                             .style('cursor', 'pointer')
                             .on('mouseenter', function(event: any) {
-                                d3.select(this).transition().duration(100).attr('r', 8);
+                                d3.select(this).transition().duration(100).attr('r', TARGET_MARKER_HOVER_RADIUS);
                                 const [mouseX, mouseY] = d3.pointer(event, targetsContainer);
                                 tooltip
                                     .style('visibility', 'visible')
@@ -3178,7 +3202,7 @@ const fmt1 = (v: any) => {
                                     .style('left', (mouseX + 10) + 'px');
                             })
                             .on('mouseleave', function() {
-                                d3.select(this).transition().duration(100).attr('r', 6);
+                                d3.select(this).transition().duration(100).attr('r', TARGET_MARKER_RADIUS);
                                 tooltip.style('visibility', 'hidden');
                             });
                         
@@ -3388,7 +3412,7 @@ const fmt1 = (v: any) => {
 
                 appendTargetLineStyleLegend(svg, {
                     x: margin.left + width - 168,
-                    y: margin.top + height - 48,
+                    bottom: margin.top + height - 12,
                 });
 
                 // Add Citation

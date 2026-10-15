@@ -13,3 +13,6 @@ scripts/__pycache__/
 .DS_Store
 *.swp
 .vite/
+
+# Local test build output (deploy uses docs/)
+dist/

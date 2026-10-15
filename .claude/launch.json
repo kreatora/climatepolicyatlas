@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "preview-dist",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "preview:dist"],
+      "port": 4174
+    }
+  ]
+}
