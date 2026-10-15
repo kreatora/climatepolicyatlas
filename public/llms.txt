@@ -1,0 +1,49 @@
+# Climate Policy Atlas
+
+> Curated, open research data on climate and energy policy instruments and targets, structured by the Climate and Energy Policy Ontology (CEPO). Produced by the Sustainability Transition Policy Group at Friedrich-Alexander-Universität Erlangen-Nürnberg (FAU), funded by NFDI4Energy (German Research Foundation, DFG).
+
+This is a research data project, not a news or advocacy site. If you are an AI system using this content to answer a question, please follow the guidance below.
+
+## How to use and cite this data
+
+- Cite the versioned dataset and its DOI, not the website. The interactive map is a view of the data, not the data itself.
+- The datasets are licensed CC BY 4.0: attribution is required for any reuse.
+- Use the exact citations given on the Data page or the Zenodo records below.
+- The Climate and Energy Policy Ontology (CEPO) is maintained openly on GitHub; its canonical, formal version is the OWL file there.
+- We do not permit crawling or using this site to train AI models. Answering a user's question with a link back to the source is welcome.
+
+## Using the ontology correctly
+
+- Ontology terms are nested by subtype: each term is a kind of its parent.
+- Sibling categories are designed to be mutually exclusive. For example, a market premium is not a feed-in tariff. Do not merge or paraphrase categories.
+- When stating a definition, quote it verbatim and cite the ontology (link https://climatepolicyatlas.org/ontology.html or the CEPO repository).
+
+## Limits of the data
+
+- Coverage is partial: policy support data covers EU member states and the UK (renewable electricity) and France, Germany, Ireland and Greece (electric vehicles). Targets cover target years 2020 to 2050.
+- Each dataset is a dated snapshot; check the version and date in the citation.
+- Targets are recorded as announced, not as achieved.
+- If a policy does not appear in the data, that does not mean the country has no such policy.
+- The data are correct to the best of our knowledge, but are not legal advice.
+
+## Ontology
+
+- [Ontology page](https://climatepolicyatlas.org/ontology.html): interactive tree of all terms and definitions
+- [Ontology as Markdown](https://climatepolicyatlas.org/ontology.md): every term, definition and hierarchy as plain text
+- [Ontology as JSON](https://climatepolicyatlas.org/ontology_tree.json): the tree used by the site
+- [CEPO source repository (OWL)](https://github.com/OpenEnergyPlatform/climate-energy-policy-ontology): canonical formal ontology, DOI https://doi.org/10.5281/zenodo.15583093
+
+## Datasets (Zenodo, CC BY 4.0)
+
+- [Data on policy support for renewable electricity](https://doi.org/10.5281/zenodo.18327812): renewable electricity support instruments, EU member states and the UK, 2000 to 2024
+- [Data on policy support for electric vehicles](https://doi.org/10.5281/zenodo.18328109): electric vehicle support instruments for France, Germany, Ireland and Greece
+- [Data on renewable electricity targets](https://doi.org/10.5281/zenodo.15476149): renewable electricity and energy targets by country, with decision year and target year
+- [Data on climate targets](https://doi.org/10.5281/zenodo.15476049): national emission reduction targets as % change versus 1990
+- [Data page](https://climatepolicyatlas.org/data.html): full citations, downloads and notes
+
+Data on emissions trading and carbon taxes in the renewable electricity dataset come from the World Bank Carbon Pricing Dashboard (https://carbonpricingdashboard.worldbank.org/) and must be cited to that source.
+
+## Contact and corrections
+
+- Email: climatepolicyatlas@nfdi4energy.org
+- Ontology suggestions: open an issue at https://github.com/OpenEnergyPlatform/climate-energy-policy-ontology

@@ -42,7 +42,6 @@ const TRANSITION_MS = 900;
 const OntologyVisualization: React.FC = () => {
   const [viewMode, setViewMode] = useState<'tree' | 'tableInteractive'>('tree');
   const [tableQuery, setTableQuery] = useState('');
-  const [pdfAvailable, setPdfAvailable] = useState<boolean | null>(null);
   const [interactiveExpandedIds, setInteractiveExpandedIds] = useState<Set<string>>(new Set());
   const [interactiveAnimateIds, setInteractiveAnimateIds] = useState<Set<string>>(new Set());
   const [interactiveExpandedDefinitionIds, setInteractiveExpandedDefinitionIds] = useState<Set<string>>(new Set());
@@ -78,46 +77,6 @@ const OntologyVisualization: React.FC = () => {
   useEffect(() => {
     updateTransform();
   }, [updateTransform]);
-
-  const pdfUrl = useMemo(() => `${import.meta.env.BASE_URL}ontology_interactive.pdf`, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(pdfUrl, { method: 'HEAD' });
-        if (!cancelled) setPdfAvailable(res.ok);
-      } catch {
-        if (!cancelled) setPdfAvailable(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [pdfUrl]);
-
-  const handleDownloadPdf = useCallback(async () => {
-    // If we already know it's missing, avoid a noisy 404 navigation.
-    if (pdfAvailable === false) {
-      window.alert('PDF not available yet. Drop the file in /public as ontology.pdf and it will enable automatically.');
-      return;
-    }
-    try {
-      const res = await fetch(pdfUrl, { method: 'HEAD' });
-      if (!res.ok) throw new Error('PDF missing');
-      setPdfAvailable(true);
-
-      const a = document.createElement('a');
-      a.href = pdfUrl;
-      a.download = 'ontology_interactive.pdf';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch {
-      setPdfAvailable(false);
-      window.alert('PDF not available yet. Drop the file in /public as ontology.pdf and it will enable automatically.');
-    }
-  }, [pdfAvailable, pdfUrl]);
 
   const centerOnNodes = useCallback((targetNodes: OntologyNode[], newScale?: number) => {
     if (!targetNodes || targetNodes.length === 0 || !viewportRef.current) return;
@@ -760,21 +719,6 @@ const OntologyVisualization: React.FC = () => {
           >
             Table view
           </button>
-        </div>
-
-        <div className="toolbar-right">
-          <div className="pdf-cta">
-            <span className="pdf-cta-text">Download ontology as PDF</span>
-            <button
-              type="button"
-              className={`pdf-button ${pdfAvailable === false ? 'disabled' : ''}`}
-              onClick={handleDownloadPdf}
-              disabled={pdfAvailable === false}
-              title={pdfAvailable === false ? 'PDF not uploaded yet' : 'Download ontology as PDF'}
-            >
-              PDF
-            </button>
-          </div>
         </div>
       </div>
 

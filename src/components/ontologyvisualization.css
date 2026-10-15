@@ -96,58 +96,6 @@
     color: oklch(0.99 0.02 97.77);
 }
 
-.toolbar-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    pointer-events: auto;
-}
-
-.pdf-cta {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: rgba(255, 255, 255, 0.82);
-    border: 1px solid #90a090;
-    border-radius: 12px;
-    padding: 6px 8px;
-    backdrop-filter: blur(6px);
-    box-shadow: 0 1px 10px rgba(0,0,0,0.10);
-}
-
-.pdf-cta-text {
-    font-size: 13px;
-    color: #1A3A1A;
-    opacity: 0.9;
-    white-space: nowrap;
-}
-
-.pdf-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 10px;
-    border: 1px solid #90a090;
-    padding: 8px 12px;
-    font-size: 13px;
-    font-weight: 700;
-    background-color: #e0e8e0;
-    color: #1A3A1A;
-    cursor: pointer;
-    transition: background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
-}
-
-.pdf-button:hover {
-    background-color: #c8d0c8;
-    border-color: #7a8a7a;
-}
-
-.pdf-button.disabled,
-.pdf-button:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-}
-
 .ontology-table-wrap {
     flex: 1 1 auto;
     min-height: 0;
@@ -661,7 +609,7 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     padding: 25px;
     /* Must be above the toolbar (toolbar uses z-index: 2000), so the definition panel
-       never gets covered by the "Download ontology as PDF" button. */
+       never gets covered by the toolbar. */
     z-index: 3000;
     display: flex;
     flex-direction: column;

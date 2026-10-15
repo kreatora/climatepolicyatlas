@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import machineReadable from './scripts/vite-plugin-machine-readable.mjs';
 import { existsSync } from 'fs';
 import { resolve, join } from 'path';
 
@@ -17,7 +18,7 @@ const nodeModulesRoot = existsSync(projectNodeModules)
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), machineReadable()],
   resolve: nodeModulesRoot
     ? {
         alias: {
