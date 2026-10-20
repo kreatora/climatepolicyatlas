@@ -2470,9 +2470,15 @@ const fmt1 = (v: any) => {
                             .html(
                             `<strong>How to read this chart</strong><br>` +
                             `Each <strong>line</strong> connects a decision year to a target year.<br>` +
-                            `The <strong>vertical axis</strong> shows % change compared to the 1990 emissions baseline.<br>` +
+                            `The <strong>vertical axis</strong> shows the emission reduction target (%) as stated by the country.<br>` +
                             `An <strong>open circle</strong> marks the year a target was set; a <strong>filled circle</strong> marks its deadline.<br>` +
-                            `<span style="color:#94a3b8">Hover over any circle or line for details.</span>`
+                            `<span style="color:#94a3b8">Hover over any circle or line for details.</span>` +
+                            `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.2);color:#fcd34d;">` +
+                            `<strong>Note:</strong> This chart is a first-glance overview, not an analysis. ` +
+                            `Targets use different reference points (e.g. 1990, 2005 or business-as-usual), ` +
+                            `may be conditional or cover only some sectors, so values are not directly comparable ` +
+                            `between targets or countries. See the dataset on Zenodo for details.` +
+                            `</div>`
                             );
                         infoG.on('mouseenter', () => htrtcTip.style('visibility', 'visible'))
                              .on('mouseleave', () => htrtcTip.style('visibility', 'hidden'));

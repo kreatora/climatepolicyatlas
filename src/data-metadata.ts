@@ -31,13 +31,31 @@ export interface DatasetMetadata {
 const ATLAS_PUBLISHER =
     'Sustainability Transition Policy Group, Friedrich-Alexander-Universität Erlangen-Nürnberg';
 
-export const ATLAS_SITE_LABEL = 'ClimatePolicyAtlas.org/world-map';
+/** Domain only; pageSlug supplies the page path (e.g. "world-map"), so the label must not repeat it. */
+export const ATLAS_SITE_LABEL = 'ClimatePolicyAtlas.org';
+
+/**
+ * Zenodo record IDs (also DOI suffixes). Must match the links on data.html (the Data page).
+ * Single source of truth for the map attribution, the "Learn more" modal and the JSON-LD export.
+ */
+export const ZENODO_RECORD_IDS = {
+    reSupport: '21208041',
+    evSupport: '18328109',
+    reTargets: '21106558',
+    climateTargets: '21107298',
+    regulations: '21107423',
+} as const;
+
+const REGULATIONS_CITATION =
+    `Chaianong, A., Günkördü, D., Lebedeva, D., Malhotra, P., Milioritsas, I., Weiß, J., Weko, S., and Lilliestam, J. (2026): Data on landscape and environmental regulations for energy production and infrastructure (Version 1, July 2026). Sustainability Transition Policy Group, Friedrich-Alexander-Universität Erlangen-Nürnberg. DOI: 10.5281/zenodo.${ZENODO_RECORD_IDS.regulations}`;
+
+const zenodoUrl = (id: string): string => `https://zenodo.org/records/${id}`;
 
 const DATASETS: Record<DatasetKey, DatasetMetadata> = {
     reSupport: {
         dataSource: 'Climate Policy Atlas — Renewable electricity support instruments (2000–2024)',
         suggestedCitation:
-            'Weko, S., Bold, F., Chaianong, A., Günkördü, D., Lebedeva, D., Malhotra, P., Milioritsas, I., Weiß, J., and Lilliestam, J. (2026): Data on policy support for renewable electricity (Version 1, January 2026). Friedrich-Alexander-Universität Erlangen-Nürnberg. DOI: 10.5281/zenodo.18327812',
+            `Weko, S., Bold, F., Chaianong, A., Günkördü, D., Lebedeva, D., Malhotra, P., Milioritsas, I., Weiß, J., and Lilliestam, J. (2026): Data on policy support for renewable electricity (Version 1.1, July 2026). Friedrich-Alexander-Universität Erlangen-Nürnberg. DOI: 10.5281/zenodo.${ZENODO_RECORD_IDS.reSupport}`,
         license: 'CC BY 4.0',
         licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
         pageSlug: 'world-map',
@@ -49,14 +67,14 @@ const DATASETS: Record<DatasetKey, DatasetMetadata> = {
             'Data are free to reuse with appropriate attribution (see Zenodo record for full terms).',
         ],
         relatedLinks: [
-            { label: 'Zenodo dataset', url: 'https://zenodo.org/records/18327812' },
+            { label: 'Zenodo dataset', url: zenodoUrl(ZENODO_RECORD_IDS.reSupport) },
             { label: 'Data page', url: 'data.html' },
         ],
     },
     evSupport: {
         dataSource: 'Climate Policy Atlas — Electric vehicle support instruments',
         suggestedCitation:
-            'Weko, S., Bold, F., Chaianong, A., Günkördü, D., Lebedeva, D., Malhotra, P., Milioritsas, I., Weiß, J., and Lilliestam, J. (2026): Data on policy support for electric vehicles (Version 1, January 2026). Friedrich-Alexander-Universität Erlangen-Nürnberg. DOI: 10.5281/zenodo.18328109',
+            `Weko, S., Bold, F., Chaianong, A., Günkördü, D., Lebedeva, D., Malhotra, P., Milioritsas, I., Weiß, J., and Lilliestam, J. (2026): Data on policy support for electric vehicles (Version 1, January 2026). Friedrich-Alexander-Universität Erlangen-Nürnberg. DOI: 10.5281/zenodo.${ZENODO_RECORD_IDS.evSupport}`,
         license: 'CC BY 4.0',
         licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
         pageSlug: 'world-map',
@@ -64,14 +82,14 @@ const DATASETS: Record<DatasetKey, DatasetMetadata> = {
             'Electric vehicle support instruments for France, Germany, Ireland, and Greece, ' +
             'including introduction years and policy types.',
         relatedLinks: [
-            { label: 'Zenodo dataset', url: 'https://zenodo.org/records/18328109' },
+            { label: 'Zenodo dataset', url: zenodoUrl(ZENODO_RECORD_IDS.evSupport) },
             { label: 'Data page', url: 'data.html' },
         ],
     },
     reTargets: {
         dataSource: 'Climate Policy Atlas — Renewable energy targets (2020–2050)',
         suggestedCitation:
-            'Chaianong, A., Malhotra P., Milioritsas, I., Weko, S., and Lilliestam, J. (2025): Data on renewable electricity targets (Version 1, February 2025). Sustainability Transition Policy Group, Friedrich-Alexander-Universität Erlangen-Nürnberg. DOI: 10.5281/zenodo.15476149.',
+            `Chaianong, A., Günkördü, D., Malhotra, P., Milioritsas, I., Weko, S., and Lilliestam, J. (2026): Data on renewable electricity targets (Version 3, July 2026). Sustainability Transition Policy Group, Friedrich-Alexander-Universität Erlangen-Nürnberg. DOI: 10.5281/zenodo.${ZENODO_RECORD_IDS.reTargets}.`,
         license: 'CC BY 4.0',
         licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
         pageSlug: 'world-map',
@@ -79,30 +97,28 @@ const DATASETS: Record<DatasetKey, DatasetMetadata> = {
             'Renewable electricity, renewable energy, and related targets by country, ' +
             'including decision year and target year.',
         relatedLinks: [
-            { label: 'Zenodo dataset', url: 'https://zenodo.org/records/15476149' },
+            { label: 'Zenodo dataset', url: zenodoUrl(ZENODO_RECORD_IDS.reTargets) },
             { label: 'Data page', url: 'data.html' },
         ],
     },
     climateTargets: {
         dataSource: 'Climate Policy Atlas — Emission reduction targets (% vs 1990 baseline)',
         suggestedCitation:
-            'Chaianong, A., Malhotra P., Milioritsas, I., Weko, S., and Lilliestam, J. (2025): Data on climate targets (Version 1, February 2025). Sustainability Transition Policy Group, Friedrich-Alexander-Universität Erlangen-Nürnberg. DOI: 10.5281/zenodo.15476049.',
+            `Chaianong, A., Malhotra P., Milioritsas, I., Weko, S., and Lilliestam, J. (2026): Data on climate targets (Version 3, June 2026). Sustainability Transition Policy Group, Friedrich-Alexander-Universität Erlangen-Nürnberg. DOI: 10.5281/zenodo.${ZENODO_RECORD_IDS.climateTargets}.`,
         license: 'CC BY 4.0',
         licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
         pageSlug: 'world-map',
         about:
             'National emission reduction targets expressed as percentage change compared to 1990 emissions baseline.',
         relatedLinks: [
-            { label: 'Zenodo dataset', url: 'https://zenodo.org/records/15476049' },
+            { label: 'Zenodo dataset', url: zenodoUrl(ZENODO_RECORD_IDS.climateTargets) },
             { label: 'Data page', url: 'data.html' },
         ],
     },
     buildCodes: {
         dataSource:
-            'D2.2.1.1 Data collection — Regulations for energy infrastructure (Feb 2025), STP/FAU',
-        suggestedCitation:
-            `${ATLAS_PUBLISHER} (2025). Regulations for energy infrastructure — Build Codes dataset ` +
-            '(Germany, Greece, Ireland). NFDI4Energy / Climate Policy Atlas.',
+            'Climate Policy Atlas — Landscape and environmental regulations for energy production and infrastructure',
+        suggestedCitation: REGULATIONS_CITATION,
         license: 'CC BY 4.0',
         licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
         pageSlug: 'world-map#regulations-build-codes',
@@ -116,6 +132,8 @@ const DATASETS: Record<DatasetKey, DatasetMetadata> = {
             'Inactive and overwritten rules are excluded from the map metric.',
         ],
         relatedLinks: [
+            { label: 'Zenodo dataset', url: zenodoUrl(ZENODO_RECORD_IDS.regulations) },
+            { label: 'Data page', url: 'data.html' },
             { label: 'Contact', url: 'mailto:climatepolicyatlas@nfdi4energy.org' },
         ],
     },
@@ -123,8 +141,8 @@ const DATASETS: Record<DatasetKey, DatasetMetadata> = {
         dataSource:
             'Regulations dataset (STP/FAU) + OpenStreetMap features + Eurostat NUTS (GISCO)',
         suggestedCitation:
-            `${ATLAS_PUBLISHER} (2025–2026). Buildable land rasters derived from coded setback rules. ` +
-            'Climate Policy Atlas. OSM © OpenStreetMap contributors (ODbL).',
+            `${REGULATIONS_CITATION}. Buildable land rasters derived from the coded setback rules; ` +
+            'OSM © OpenStreetMap contributors (ODbL).',
         license: 'CC BY 4.0',
         licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
         pageSlug: 'world-map#regulations-buildable-land',
@@ -139,6 +157,8 @@ const DATASETS: Record<DatasetKey, DatasetMetadata> = {
             'Re-bake rasters after pipeline updates: python scripts/build_buildable_rasters.py --overwrite',
         ],
         relatedLinks: [
+            { label: 'Zenodo dataset (regulations)', url: zenodoUrl(ZENODO_RECORD_IDS.regulations) },
+            { label: 'Data page', url: 'data.html' },
             {
                 label: 'Tröndle et al. — technical potential maps (comparison)',
                 url: 'https://timtroendle.github.io/possibility-for-electricity-autarky-map/',

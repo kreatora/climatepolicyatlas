@@ -35,10 +35,10 @@ This is a research data project, not a news or advocacy site. If you are an AI s
 
 ## Datasets (Zenodo, CC BY 4.0)
 
-- [Data on policy support for renewable electricity](https://doi.org/10.5281/zenodo.18327812): renewable electricity support instruments, EU member states and the UK, 2000 to 2024
+- [Data on policy support for renewable electricity](https://doi.org/10.5281/zenodo.21208041): renewable electricity support instruments, EU member states and the UK, 2000 to 2024
 - [Data on policy support for electric vehicles](https://doi.org/10.5281/zenodo.18328109): electric vehicle support instruments for France, Germany, Ireland and Greece
-- [Data on renewable electricity targets](https://doi.org/10.5281/zenodo.15476149): renewable electricity and energy targets by country, with decision year and target year
-- [Data on climate targets](https://doi.org/10.5281/zenodo.15476049): national emission reduction targets as % change versus 1990
+- [Data on renewable electricity targets](https://doi.org/10.5281/zenodo.21106558): renewable electricity and energy targets by country, with decision year and target year
+- [Data on climate targets](https://doi.org/10.5281/zenodo.21107298): national emission reduction targets as % change versus 1990
 - [Data page](https://climatepolicyatlas.org/data.html): full citations, downloads and notes
 
 Data on emissions trading and carbon taxes in the renewable electricity dataset come from the World Bank Carbon Pricing Dashboard (https://carbonpricingdashboard.worldbank.org/) and must be cited to that source.

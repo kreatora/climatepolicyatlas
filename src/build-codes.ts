@@ -358,7 +358,7 @@ function renderPanelBuildCodesLegend(tech: 'wind' | 'solar' | 'ev') {
 // ---------------------------------------------------------------------------
 
 /**
- * NUTS inheritance: rules at NUTS-0 (DE / EL / IE) apply to every region inside
+ * NUTS inheritance: rules at NUTS-0 (DE / EL / IE / FR) apply to every region inside
  * that country; NUTS-1 rules apply to every NUTS-3 within that NUTS-1; and so on.
  * Returns all rules whose NUTS code is a prefix of `regionCode`.
  */
@@ -689,10 +689,15 @@ export async function renderBuildCodesOnMap(host: MapHost, filters: BuildCodesFi
     const layer = host.regulationsG;
     layer.style('display', null);
 
+    const lvl0 = await loadNuts(0);
     const lvl1 = await loadNuts(1);
     const lvl3 = await loadNuts(3);
 
     const features: any[] = [];
+    // France rules are coded at country level (nuts "FR"), so the NUTS-0 polygon carries them.
+    for (const f of lvl0.features) {
+        if ((f.properties.NUTS_ID || '').toUpperCase() === 'FR') features.push(f);
+    }
     for (const f of lvl1.features) {
         if ((f.properties.CNTR_CODE || '').toUpperCase() === 'DE') features.push(f);
     }
@@ -746,7 +751,7 @@ export async function renderBuildCodesOnMap(host: MapHost, filters: BuildCodesFi
         });
 
     const code3to2 = host.countryCode3to2;
-    const dataCountry2 = new Set(['DE', 'GR', 'IE']);
+    const dataCountry2 = new Set(['DE', 'GR', 'IE', 'FR']);
     const labelFeatures = host.geoData.features.filter((f: any) => {
         const c2 = code3to2[f.id];
         return c2 && !dataCountry2.has(c2);
