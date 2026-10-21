@@ -118,7 +118,7 @@ type TargetLineStyleLegendOptions = {
     lineColor?: string;
 };
 
-/** Marker styles: open circle = year target was set, filled circle = target deadline. */
+/** Marker styles: open circle = year target was set, filled circle = target year. */
 const TARGET_MARKER_RADIUS = 5;
 const TARGET_MARKER_HOVER_RADIUS = 7;
 
@@ -153,7 +153,7 @@ function appendTargetLineStyleLegend(
         { label: 'Active target', strokeWidth: 3, dasharray: null },
         { label: 'Superseded or expired', strokeWidth: 3, dasharray: '4,3', opacity: 0.5 },
         { label: 'Year target was set', marker: 'decision' },
-        { label: 'Target deadline', marker: 'deadline' },
+        { label: 'Target year', marker: 'deadline' },
     ];
 
     const rowHeight = 14;
@@ -2006,12 +2006,12 @@ Promise.all([
                 });
 
                 if (selectedTarget) {
-                    return `<strong>${countryName}</strong><br/>Emissions reduction target: ${fmt1(selectedTarget.targetValue)}% by ${selectedTarget.yearTarget}<br/>Decision Year: ${selectedTarget.yearDecision}`;
+                    return `<strong>${countryName}</strong><br/>Climate target: ${fmt1(selectedTarget.targetValue)}% by ${selectedTarget.yearTarget}<br/>Decision Year: ${selectedTarget.yearDecision}`;
                 }
 
-                return `<strong>${countryName}</strong><br/>No emission target data for ${currentClimateTargetYearGroup}`;
+                return `<strong>${countryName}</strong><br/>No climate target data for ${currentClimateTargetYearGroup}`;
             } else {
-                return `<strong>${countryName}</strong><br/>No emission target data`;
+                return `<strong>${countryName}</strong><br/>No climate target data`;
             }
         } else if (currentMapType === 'ev') {
             const evPolicyData = allData.ev.data || {};
@@ -2065,7 +2065,7 @@ Promise.all([
             policies: 'Renewable Electricity Support — Policy Count',
             ev: 'Electric Vehicle Support — Policy Count',
             targets: `${getTargetTypeDisplayName(currentTargetType)} (Percent)`,
-            climateTargets: 'Emissions Reduction Target (Percent Versus 1990)',
+            climateTargets: 'Climate Target (Percent)',
         };
 
         const gradientStops = d3.range(0, 1.01, 0.12)
@@ -2431,7 +2431,7 @@ const fmt1 = (v: any) => {
                         .style('font-weight', '700')
                         .style('font-family', 'Inter, -apple-system, BlinkMacSystemFont, sans-serif')
                         .style('fill', '#1e293b')
-                        .text('Climate Emissions Reduction Targets');
+                        .text('Climate Targets Progression');
 
                     // "How to read this chart" info icon
                     {
@@ -2470,11 +2470,11 @@ const fmt1 = (v: any) => {
                             .html(
                             `<strong>How to read this chart</strong><br>` +
                             `Each <strong>line</strong> connects a decision year to a target year.<br>` +
-                            `The <strong>vertical axis</strong> shows the emission reduction target (%) as stated by the country.<br>` +
-                            `An <strong>open circle</strong> marks the year a target was set; a <strong>filled circle</strong> marks its deadline.<br>` +
+                            `The <strong>vertical axis</strong> shows the climate target (%) as stated by the country.<br>` +
+                            `An <strong>open circle</strong> marks the year a target was set; a <strong>filled circle</strong> marks its target year.<br>` +
                             `<span style="color:#94a3b8">Hover over any circle or line for details.</span>` +
                             `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.2);color:#fcd34d;">` +
-                            `<strong>Note:</strong> This chart is a first-glance overview, not an analysis. ` +
+                            `<strong>Note:</strong> This chart is a first-glance overview. ` +
                             `Targets use different reference points (e.g. 1990, 2005 or business-as-usual), ` +
                             `may be conditional or cover only some sectors, so values are not directly comparable ` +
                             `between targets or countries. See the dataset on Zenodo for details.` +
@@ -2572,7 +2572,7 @@ const fmt1 = (v: any) => {
                         .style('font-weight', '600')
                         .style('font-family', 'Inter, -apple-system, BlinkMacSystemFont, sans-serif')
                         .style('fill', '#475569')
-                        .text('Emission Reduction Target (%)');
+                        .text('Climate Target (%)');
 
                     // Add Citation
                     d3.select(targetsContainer).append('div')
@@ -2631,8 +2631,8 @@ const fmt1 = (v: any) => {
                             .on('mouseenter', function(event: any) {
                                 const [mouseX, mouseY] = d3.pointer(event, targetsContainer);
                                 const tooltipText = isSuperseded
-                                    ? `${fmtVal(target.targetValue)}% emissions reduction target from ${target.decisionYear} to ${endYear} (superseded, original deadline: ${target.targetYear})`
-                                    : `${fmtVal(target.targetValue)}% emissions reduction target from ${target.decisionYear} to ${target.targetYear}${isExpired ? ' (expired)' : ''}`;
+                                    ? `${fmtVal(target.targetValue)}% climate target from ${target.decisionYear} to ${endYear} (superseded, original target year: ${target.targetYear})`
+                                    : `${fmtVal(target.targetValue)}% climate target from ${target.decisionYear} to ${target.targetYear}${isExpired ? ' (expired)' : ''}`;
                                 tooltip
                                     .style('visibility', 'visible')
                                     .html(tooltipText)
@@ -2659,7 +2659,7 @@ const fmt1 = (v: any) => {
                                     const [mouseX, mouseY] = d3.pointer(event, targetsContainer);
                                     tooltip
                                         .style('visibility', 'visible')
-                                        .html(`Target for ${target.targetYear} updated in ${nextTarget.decisionYear}<br/>From ${fmtVal(target.targetValue)}% to ${fmtVal(nextTarget.targetValue)}% emissions reduction`)
+                                        .html(`Target for ${target.targetYear} updated in ${nextTarget.decisionYear}<br/>From ${fmtVal(target.targetValue)}% to ${fmtVal(nextTarget.targetValue)}%`)
                                         .style('top', (mouseY + 10) + 'px')
                                         .style('left', (mouseX + 10) + 'px');
                                 })
@@ -2679,7 +2679,7 @@ const fmt1 = (v: any) => {
                                 const [mouseX, mouseY] = d3.pointer(event, targetsContainer);
                                 tooltip
                                     .style('visibility', 'visible')
-                                    .html(`Decision: ${target.decisionYear}<br/>Target: ${fmtVal(target.targetValue)}% emissions reduction by ${target.targetYear}`)
+                                    .html(`Decision: ${target.decisionYear}<br/>Climate target: ${fmtVal(target.targetValue)}% by ${target.targetYear}`)
                                     .style('top', (mouseY + 10) + 'px')
                                     .style('left', (mouseX + 10) + 'px');
                             })
@@ -2718,7 +2718,7 @@ const fmt1 = (v: any) => {
                                     const [mouseX, mouseY] = d3.pointer(event, targetsContainer);
                                     tooltip
                                         .style('visibility', 'visible')
-                                        .html(`Target deadline: ${target.targetYear}<br/>Target: ${fmtVal(target.targetValue)}% emissions reduction`)
+                                        .html(`Target year: ${target.targetYear}<br/>Climate target: ${fmtVal(target.targetValue)}%`)
                                         .style('top', (mouseY + 10) + 'px')
                                         .style('left', (mouseX + 10) + 'px');
                                 })
@@ -2844,8 +2844,14 @@ const fmt1 = (v: any) => {
                             `<strong>How to read this chart</strong><br>` +
                             `Each <strong>line</strong> connects a decision year to a target year.<br>` +
                             `The <strong>vertical axis</strong> shows the target percentage (e.g. share of renewables).<br>` +
-                            `An <strong>open circle</strong> marks the year a target was set; a <strong>filled circle</strong> marks its deadline.<br>` +
-                            `<span style="color:#94a3b8">Hover over any circle or line for details.</span>`
+                            `An <strong>open circle</strong> marks the year a target was set; a <strong>filled circle</strong> marks its target year.<br>` +
+                            `<span style="color:#94a3b8">Hover over any circle or line for details.</span>` +
+                            `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.2);color:#fcd34d;">` +
+                            `<strong>Note:</strong> This chart is a first-glance overview. ` +
+                            `Targets differ in scope: some include all renewables, others exclude (large) hydro ` +
+                            `or cover only specific technologies, so values are not directly comparable ` +
+                            `between targets or countries. See the dataset on Zenodo for details.` +
+                            `</div>`
                         );
                     infoG.on('mouseenter', () => htrtcTip.style('visibility', 'visible'))
                          .on('mouseleave', () => htrtcTip.style('visibility', 'hidden'));
@@ -2992,7 +2998,7 @@ const fmt1 = (v: any) => {
                     const isHistorical = isSuperseded || isExpired;
                     
                     // Draw horizontal line from decision year to end year at the target value level
-                    const lineTooltipText = `${fmt1(target.targetValue)}% target from ${target.decisionYear} to ${endYear}${isSuperseded ? ` (superseded, original deadline: ${target.targetYear})` : ''}${isExpired ? ' (expired)' : ''}`;
+                    const lineTooltipText = `${fmt1(target.targetValue)}% target from ${target.decisionYear} to ${endYear}${isSuperseded ? ` (superseded, original target year: ${target.targetYear})` : ''}${isExpired ? ' (expired)' : ''}`;
                     g.append('line')
                         .attr('class', `target-line target-type-${target.targetType.replace(/[^a-zA-Z0-9]/g, '-')}`)
                         .attr('data-target-type', target.targetType)
@@ -3182,7 +3188,7 @@ const fmt1 = (v: any) => {
                     // Draw end point ONLY if target reaches its actual deadline (not superseded)
                     // This prevents misleading dots at supersede years that look like decisions
                     if (endYear === target.targetYear) {
-                        const endTooltipText = `Target deadline: ${target.targetYear}<br/>Target: ${fmt1(target.targetValue)}%`;
+                        const endTooltipText = `Target year: ${target.targetYear}<br/>Target: ${fmt1(target.targetValue)}%`;
                         g.append('circle')
                             .attr('class', `target-circle target-type-${target.targetType.replace(/[^a-zA-Z0-9]/g, '-')}`)
                             .attr('data-target-type', target.targetType)
@@ -4550,9 +4556,9 @@ const fmt1 = (v: any) => {
                 };
             case 'climateTargets':
                 return {
-                    title: 'Climate Emissions Reduction Targets',
+                    title: 'Climate Targets',
                     subtitle: `World map · ${climateYearLabel}`,
-                    legend: 'Color scale: emissions reduction target (% vs 1990 baseline, Target_average)',
+                    legend: 'Color scale: climate target (%, as stated by each country)',
                 };
             default:
                 return { title: 'Climate Policy Atlas Map', subtitle: 'World map' };
@@ -4592,9 +4598,9 @@ const fmt1 = (v: any) => {
                 };
             case 'climateTargets':
                 return {
-                    title: `${countryName} — Climate Emissions Reduction Targets`,
+                    title: `${countryName} — Climate Targets Progression`,
                     subtitle: climateYearLabel,
-                    legend: 'Emissions reduction targets (% compared to 1990 baseline)',
+                    legend: 'Climate targets (%, as stated by the country)',
                 };
             default:
                 if (leftHasChart && rightHasChart) {

@@ -102,14 +102,15 @@ const DATASETS: Record<DatasetKey, DatasetMetadata> = {
         ],
     },
     climateTargets: {
-        dataSource: 'Climate Policy Atlas — Emission reduction targets (% vs 1990 baseline)',
+        dataSource: 'Climate Policy Atlas — Climate targets',
         suggestedCitation:
             `Chaianong, A., Malhotra P., Milioritsas, I., Weko, S., and Lilliestam, J. (2026): Data on climate targets (Version 3, June 2026). Sustainability Transition Policy Group, Friedrich-Alexander-Universität Erlangen-Nürnberg. DOI: 10.5281/zenodo.${ZENODO_RECORD_IDS.climateTargets}.`,
         license: 'CC BY 4.0',
         licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
         pageSlug: 'world-map',
         about:
-            'National emission reduction targets expressed as percentage change compared to 1990 emissions baseline.',
+            'National climate (emission reduction) targets in percent, as stated by each country. ' +
+            'Reference points differ (e.g. 1990, 2005 or business-as-usual), so values are not directly comparable.',
         relatedLinks: [
             { label: 'Zenodo dataset', url: zenodoUrl(ZENODO_RECORD_IDS.climateTargets) },
             { label: 'Data page', url: 'data.html' },
