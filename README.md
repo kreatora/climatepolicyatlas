@@ -1,4 +1,4 @@
-# STP Website
+# STP Atlas Website
 
 A multi-page website built with Vite, React, TypeScript, and Tailwind CSS.
 
