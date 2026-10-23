@@ -17,7 +17,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "description": "",
   "devDependencies": {
     "@tailwindcss/cli": "^4.1.7",

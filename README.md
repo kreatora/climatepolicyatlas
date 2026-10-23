@@ -2,6 +2,11 @@
 
 A multi-page website built with Vite, React, TypeScript, and Tailwind CSS.
 
+## License
+
+- **Code:** [MIT](./LICENSE) — free to use, modify and share with attribution.
+- **Data and content:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — the Climate Policy Atlas datasets are published on [Zenodo](https://climatepolicyatlas.org/data.html).
+
 ## Prerequisites
 
 - **Node.js** (v18 or later) — https://nodejs.org/
