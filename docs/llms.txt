@@ -31,6 +31,7 @@ This is a research data project, not a news or advocacy site. If you are an AI s
 - [Ontology page](https://climatepolicyatlas.org/ontology.html): interactive tree of all terms and definitions
 - [Ontology as Markdown](https://climatepolicyatlas.org/ontology.md): every term, definition and hierarchy as plain text
 - [Ontology as JSON](https://climatepolicyatlas.org/ontology_tree.json): the tree used by the site
+- [Ontology as PDF](https://climatepolicyatlas.org/ontology_interactive.pdf): overview map, family pages with definitions, index
 - [CEPO source repository (OWL)](https://github.com/OpenEnergyPlatform/climate-energy-policy-ontology): canonical formal ontology, DOI https://doi.org/10.5281/zenodo.15583093
 
 ## Datasets (Zenodo, CC BY 4.0)

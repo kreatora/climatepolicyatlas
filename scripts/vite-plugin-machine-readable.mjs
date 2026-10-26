@@ -7,18 +7,19 @@
  *   - JSON-LD (schema.org): WebSite/Organization on the home page,
  *     DefinedTermSet for the ontology, Dataset entries on the data page
  *   - sitemap.xml and ontology.md (plain-text copy of the ontology)
+ *   - ontology_interactive.pdf (downloadable ontology, see scripts/ontology/pdf.mjs)
  *
  * Single source of truth: public/ontology_tree.json and src/data-metadata.ts.
  */
-import { readFileSync } from 'fs';
-import { resolve, basename } from 'path';
+import { basename } from 'path';
 import { getDatasetMetadata } from '../src/data-metadata.ts';
+import {
+    SITE_URL, ONTOLOGY_REPO_URL, ONTOLOGY_DOI_URL, CONTACT_EMAIL,
+    loadOntology, flattenOntology, ontologyDataDate,
+} from './ontology/model.mjs';
+import { buildOntologyPdf } from './ontology/pdf.mjs';
 
-export const SITE_URL = 'https://climatepolicyatlas.org';
-
-const ONTOLOGY_REPO_URL = 'https://github.com/OpenEnergyPlatform/climate-energy-policy-ontology';
-const ONTOLOGY_DOI_URL = 'https://doi.org/10.5281/zenodo.15583093';
-const CONTACT_EMAIL = 'climatepolicyatlas@nfdi4energy.org';
+const ONTOLOGY_PDF = 'ontology_interactive.pdf';
 
 const PUBLISHER = {
     '@type': 'Organization',
@@ -101,38 +102,6 @@ const jsonForScript = (obj) => JSON.stringify(obj).replace(/</g, '\\u003c');
 
 const pageUrl = (path) => `${SITE_URL}/${path}`;
 
-function loadOntology(root) {
-    return JSON.parse(readFileSync(resolve(root, 'public/ontology_tree.json'), 'utf8'));
-}
-
-/** Flatten the tree, assigning each term a unique, stable id (used as its JSON-LD identifier). */
-function flattenOntology(tree) {
-    const used = new Set();
-    const terms = [];
-    const slugify = (name) =>
-        'term-' +
-        name
-            .toLowerCase()
-            .replace(/&/g, ' and ')
-            .normalize('NFKD')
-            .replace(/[̀-ͯ]/g, '')
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '');
-    const walk = (nodes, parent, depth) => {
-        for (const node of nodes) {
-            let id = slugify(node.name);
-            for (let i = 2; used.has(id); i++) id = `${slugify(node.name)}-${i}`;
-            used.add(id);
-            const term = { id, name: node.name.trim(), definition: (node.definition || '').trim(), parent, depth, children: [] };
-            terms.push(term);
-            if (parent) parent.children.push(term);
-            walk(node.children || [], term, depth + 1);
-        }
-    };
-    walk(tree, null, 0);
-    return terms;
-}
-
 // ---------------------------------------------------------------------------
 // Ontology outputs
 // ---------------------------------------------------------------------------
@@ -173,7 +142,7 @@ function ontologyMarkdown(terms) {
     ];
     for (const t of terms) {
         const indent = '  '.repeat(t.depth);
-        const def = t.definition ? `: ${t.definition.replace(/\s+/g, ' ')}` : '';
+        const def = t.definition ? `: ${t.definition}` : '';
         lines.push(`${indent}- **${t.name}**${def}`);
     }
     return lines.join('\n') + '\n';
@@ -248,12 +217,28 @@ function siteJsonLd() {
 // Plugin
 // ---------------------------------------------------------------------------
 
+function buildPdf(root) {
+    return buildOntologyPdf(flattenOntology(loadOntology(root)), { date: ontologyDataDate(root) });
+}
+
 export default function machineReadable() {
     let root = process.cwd();
     return {
         name: 'climate-policy-atlas-machine-readable',
         configResolved(config) {
             root = config.root;
+        },
+        configureServer(server) {
+            server.middlewares.use(async (req, res, next) => {
+                const file = (req.url || '').split('?')[0].replace(/^.*\//, '');
+                if (file !== ONTOLOGY_PDF) return next();
+                try {
+                    res.setHeader('Content-Type', 'application/pdf');
+                    res.end(await buildPdf(root));
+                } catch (err) {
+                    next(err);
+                }
+            });
         },
         transformIndexHtml(html, ctx) {
             const file = basename(ctx.filename || ctx.path || '');
@@ -290,7 +275,7 @@ export default function machineReadable() {
             }
             return { html, tags };
         },
-        generateBundle() {
+        async generateBundle() {
             const today = new Date().toISOString().slice(0, 10);
             const sitemap =
                 '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -305,6 +290,7 @@ export default function machineReadable() {
                 fileName: 'ontology.md',
                 source: ontologyMarkdown(flattenOntology(loadOntology(root))),
             });
+            this.emitFile({ type: 'asset', fileName: ONTOLOGY_PDF, source: await buildPdf(root) });
         },
     };
 }

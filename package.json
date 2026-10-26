@@ -30,6 +30,7 @@
     "autoprefixer": "^10.4.21",
     "cross-env": "^7.0.3",
     "gh-pages": "^6.1.1",
+    "pdfkit": "^0.20.2",
     "polylabel": "^2.0.1",
     "postcss": "^8.5.3",
     "tailwindcss": "^4.1.7",
