@@ -480,6 +480,17 @@ function overviewColumns(plan, terms) {
     }
     columns.forEach((c, i) => { c.index = i; });
 
+    // A column headed by a single shallow concept (e.g. Policy goals) becomes a bar in the row of its
+    // hierarchy level, next to its siblings, instead of sitting below the deeper bars.
+    const isColumnTerm = (t) => columns.some((c) => c.roots.some((r) => r === t || ancestorsOf(t).includes(r)));
+    const barRowCount = Math.max(...terms.filter((t) => !isColumnTerm(t)).map((t) => t.depth)) + 1;
+    for (const c of columns) {
+        while (c.roots.length === 1 && c.roots[0].depth < barRowCount && c.roots[0].children.length) {
+            c.roots = [...c.roots[0].children];
+        }
+        c.boxed = c.roots.some((r) => r.children.length);
+    }
+
     const colOf = new Map();
     columns.forEach((c) => c.roots.forEach((r) => {
         colOf.set(r, c.index);
@@ -513,8 +524,8 @@ function drawOverviewColumns(doc, ctx, plan, terms, region) {
         rowsLayout = columns.map((c) => {
             let y = columnsTop;
             return rowsFor(c).map((t) => {
-                const level = t.depth - c.roots[0].depth;
-                const isRoot = level === 0;
+                const level = t.depth - c.roots[0].depth + (c.boxed ? 0 : 1);
+                const isRoot = c.boxed && level === 0;
                 const indent = isRoot ? 0 : 6 + level * 9;
                 doc.font(isRoot ? 'sansBold' : t.children.length ? 'sansMedium' : 'sans').fontSize(isRoot ? fontSize + 0.5 : fontSize);
                 const textW = colW - indent - (isRoot ? 12 : 2);
@@ -548,19 +559,29 @@ function drawOverviewColumns(doc, ctx, plan, terms, region) {
                 doc.moveTo(cx, p.y + p.h).lineTo(cx, bar.y).lineWidth(1).stroke(connectorColor);
             }
         }
-        for (const c of columns) {
-            for (const r of c.roots) {
-                const p = barOf.get(r.parent);
-                if (!p) continue;
+        columns.forEach((c, ci) => {
+            const p = barOf.get(c.roots[0].parent);
+            if (!p) return;
+            if (c.boxed) {
                 const cx = c.x + colW / 2;
                 doc.moveTo(cx, p.y + p.h).lineTo(cx, columnsTop).lineWidth(1).stroke(connectorColor);
+                return;
             }
-        }
+            const gx = c.x + 10;
+            const elbowY = (row) => row.y + 1 + fontSize * 0.62;
+            const tops = rowsLayout[ci].filter((row) => row.level === 1);
+            doc.save().lineWidth(0.6).strokeColor(mix(c.roots[0].color, 0.45));
+            doc.moveTo(gx, p.y + p.h).lineTo(gx, elbowY(tops[tops.length - 1])).stroke();
+            for (const row of tops) doc.moveTo(gx, elbowY(row)).lineTo(row.x + row.indent - 2, elbowY(row)).stroke();
+            doc.restore();
+        });
         for (const t of spine) {
             const bar = barOf.get(t);
             roundedBox(doc, bar.x, bar.y, bar.w, bar.h, { fill: t.color, radius: 4 });
-            doc.font('sansBold').fontSize(10).fillColor('#ffffff');
             const label = t.name;
+            let size = 10;
+            doc.font('sansBold').fontSize(size).fillColor('#ffffff');
+            while (size > 7 && doc.widthOfString(label) > bar.w - 10) doc.fontSize((size -= 0.5));
             const w = doc.widthOfString(label);
             doc.text(label, bar.x + (bar.w - w) / 2, bar.y + 6, { lineBreak: false });
             doc.goTo(bar.x, bar.y, bar.w, bar.h, `def-${t.id}`);
