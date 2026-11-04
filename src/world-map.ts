@@ -24,7 +24,7 @@ function removeSvgLogoWatermarks(root: ParentNode) {
 
 /** Fixed x-axis range for policy support dashboard timeline charts. */
 const POLICY_DASHBOARD_YEAR_MIN = 2000;
-const POLICY_DASHBOARD_YEAR_MAX = 2024;
+const POLICY_DASHBOARD_YEAR_MAX = 2026;
 
 function policyDashboardDisplayYears(): number[] {
     const years: number[] = [];
@@ -32,6 +32,19 @@ function policyDashboardDisplayYears(): number[] {
         years.push(y);
     }
     return years;
+}
+
+/** Subsample year labels, always keeping the first and last year visible. */
+function policyDashboardYearTicks(domain: string[]): string[] {
+    const step = domain.length > 24 ? 3 : (domain.length > 14 ? 2 : 1);
+    const ticks = domain.filter((_, i) => i % step === 0);
+    const last = domain[domain.length - 1];
+    if (!last || ticks[ticks.length - 1] === last) return ticks;
+    const lastIndex = domain.length - 1;
+    const prevIndex = domain.indexOf(ticks[ticks.length - 1]);
+    if (prevIndex >= 0 && lastIndex - prevIndex < step) ticks.pop();
+    ticks.push(last);
+    return ticks;
 }
 
 function isPolicyDashboardDisplayYear(year: number): boolean {
@@ -408,9 +421,7 @@ function createFullScreenTimeSeriesChart(timeSeriesChartData: any[], countryName
 
         // Add axes with adaptive tick density for readability
         const axisFontSize = isSmallScreen ? '11px' : '14px';
-        const xDomainFS = xScale.domain();
-        const stepFS = xDomainFS.length > 24 ? 3 : (xDomainFS.length > 14 ? 2 : 1);
-        const xTicksFS = xDomainFS.filter((_, i) => i % stepFS === 0);
+        const xTicksFS = policyDashboardYearTicks(xScale.domain());
         const xAxisFS = g.append('g')
             .attr('transform', `translate(0,${height})`)
             .call(d3.axisBottom(xScale).tickValues(xTicksFS).tickSize(4).tickPadding(10))
@@ -3952,9 +3963,7 @@ const fmt1 = (v: any) => {
                     });
 
                 // Axes
-                const xDomainDash = x.domain();
-                const stepDash = xDomainDash.length > 24 ? 3 : (xDomainDash.length > 14 ? 2 : 1);
-                const xTicksDash = xDomainDash.filter((_, i) => i % stepDash === 0);
+                const xTicksDash = policyDashboardYearTicks(x.domain());
                 const xAxisDash = g.append('g')
                     .attr('class', 'x-axis')
                     .attr('transform', `translate(0, ${height})`)
@@ -4202,9 +4211,7 @@ const fmt1 = (v: any) => {
             .style('stroke-dasharray', '2,2');
 
         // Add axes with modern styling and adaptive tick density
-        const xDomain = xScale.domain();
-        const step = xDomain.length > 24 ? 3 : (xDomain.length > 14 ? 2 : 1);
-        const xTicks = xDomain.filter((_, i) => i % step === 0);
+        const xTicks = policyDashboardYearTicks(xScale.domain());
         const xAxis = g.append('g')
             .attr('transform', `translate(0,${chartHeight})`)
             .call(d3.axisBottom(xScale).tickValues(xTicks).tickSize(4).tickPadding(8))
