@@ -37,7 +37,8 @@ function ensureStyles(): void {
         #world-map-container.has-data-attribution .map-choropleth-legend {
             bottom: 58px;
         }
-        #world-map-container.has-data-attribution .cpa-download-menu {
+        #world-map-container.has-data-attribution .cpa-download-menu,
+        #world-map-container.has-data-attribution .cpa-filter-menu {
             bottom: 58px;
         }
         #map-data-attribution .map-data-source-line { margin: 0; }

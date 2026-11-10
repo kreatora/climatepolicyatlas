@@ -9,6 +9,7 @@ import { resolveDatasetKey, getDatasetMetadata } from './data-metadata';
 import { registerMapHost, getMapHost } from './map-host';
 import { renderBuildCodesOnMap, getBuildCodeAsOfYear } from './build-codes';
 import { downloadFullDataset, downloadFullDatasetCsv } from './dataset-download';
+import { registerPolicyFilterMenu, rowPasses, defaultFilterState, type PolicyFilterState } from './policy-filter';
 
 /** Remove legacy in-chart logo watermarks (logo now lives in the modal header bar). */
 function removeSvgLogoWatermarks(root: ParentNode) {
@@ -1307,17 +1308,6 @@ Promise.all([
         year: yearColumnName
     });
 
-    function isIntroduced(row: any): boolean {
-        if (!policyChangedDetailColumnName) {
-            // If we cannot locate the policy_changed_detail column, skip counting
-            return false;
-        }
-        const raw = row[policyChangedDetailColumnName];
-        if (raw == null) return false;
-        const v = String(raw).trim().toLowerCase();
-        return v === 'introduced';
-    }
-
     const countryNameMap = geoData.features.reduce((acc: { [key: string]: string }, feature: any) => {
         acc[feature.properties.name] = feature.id;
         return acc;
@@ -1392,23 +1382,28 @@ Promise.all([
     }
     
     // Process policy data to count total policies per country
-    const policyData = policyCsv.reduce((acc: { [key: string]: number }, row: any) => {
-        // Only count policies with Status === 'introduced'
-        if (!isIntroduced(row)) return acc;
-        const countryName = normalizePolicyCountryName(row[countryColumnName]);
-        if (countryName) {
-            const countryCode3 = countryNameMap[countryName];
-            if (countryCode3) {
-                if (!acc[countryCode3]) {
-                    acc[countryCode3] = 0;
+    const policyData: { [key: string]: number } = {};
+    let currentPolicyFilter: PolicyFilterState = defaultFilterState(policyCsv);
+    // Recounts policies per country using the filter state (mutates policyData in place)
+    function fillPolicyCounts(state: PolicyFilterState) {
+        Object.keys(policyData).forEach(key => delete policyData[key]);
+        policyCsv.forEach((row: any) => {
+            if (!rowPasses(row, state)) return;
+            const countryName = normalizePolicyCountryName(row[countryColumnName]);
+            if (countryName) {
+                const countryCode3 = countryNameMap[countryName];
+                if (countryCode3) {
+                    if (!policyData[countryCode3]) {
+                        policyData[countryCode3] = 0;
+                    }
+                    policyData[countryCode3]++;
+                } else {
+                    // console.warn(`No country code found for: ${countryName}`);
                 }
-                acc[countryCode3]++;
-            } else {
-                // console.warn(`No country code found for: ${countryName}`);
             }
-        }
-        return acc;
-    }, {});
+        });
+    }
+    fillPolicyCounts(currentPolicyFilter);
 
     // Process time series data: model yearly active policy types using events
     // Build events per country+measure, then expand to yearly active states
@@ -1427,30 +1422,38 @@ Promise.all([
     // Build time series data: only show bars for years where actual data exists in CSV
     const timeSeriesData: { [country: string]: { [year: number]: { [measure: string]: number } } } = {};
     
-    policyCsv.forEach((row: any) => {
-        const countryName = normalizePolicyCountryName(row[countryColumnName]);
-        const measure = row[measureColumnName] || 'Unknown';
-        const rawYear = row[yearColumnName];
-        const rawDetail = policyChangedDetailColumnName ? row[policyChangedDetailColumnName] : null;
-        const yearNum = rawYear != null ? Number(rawYear) : NaN;
-        const detailStr = rawDetail != null ? String(rawDetail) : '';
-        if (!countryName || !Number.isFinite(yearNum)) return;
-        const countryCode3 = countryNameMap[countryName];
-        if (!countryCode3) return;
+    // Rebuilds both objects in place (allData.policies.timeSeriesData shares the reference)
+    function fillTimeSeries() {
+        Object.keys(eventsByCountryMeasure).forEach(key => delete eventsByCountryMeasure[key]);
+        Object.keys(timeSeriesData).forEach(key => delete timeSeriesData[key]);
+        policyCsv.forEach((row: any) => {
+            // Dashboards ignore the change-event filter on purpose: otherwise the default 'introduced' filter would cut the timeline to intro years
+            if (!rowPasses(row, currentPolicyFilter, true)) return;
+            const countryName = normalizePolicyCountryName(row[countryColumnName]);
+            const measure = row[measureColumnName] || 'Unknown';
+            const rawYear = row[yearColumnName];
+            const rawDetail = policyChangedDetailColumnName ? row[policyChangedDetailColumnName] : null;
+            const yearNum = rawYear != null ? Number(rawYear) : NaN;
+            const detailStr = rawDetail != null ? String(rawDetail) : '';
+            if (!countryName || !Number.isFinite(yearNum)) return;
+            const countryCode3 = countryNameMap[countryName];
+            if (!countryCode3) return;
 
-        // Track events for deactivation logic (used in popups)
-        const eventType = classifyEvent(detailStr);
-        if (eventType !== 'other') {
-            if (!eventsByCountryMeasure[countryCode3]) eventsByCountryMeasure[countryCode3] = {};
-            if (!eventsByCountryMeasure[countryCode3][measure]) eventsByCountryMeasure[countryCode3][measure] = [];
-            eventsByCountryMeasure[countryCode3][measure].push({ year: yearNum, type: eventType });
-        }
+            // Track events for deactivation logic (used in popups)
+            const eventType = classifyEvent(detailStr);
+            if (eventType !== 'other') {
+                if (!eventsByCountryMeasure[countryCode3]) eventsByCountryMeasure[countryCode3] = {};
+                if (!eventsByCountryMeasure[countryCode3][measure]) eventsByCountryMeasure[countryCode3][measure] = [];
+                eventsByCountryMeasure[countryCode3][measure].push({ year: yearNum, type: eventType });
+            }
 
-        // Only show bar if there's actual data for this country+measure+year
-        if (!timeSeriesData[countryCode3]) timeSeriesData[countryCode3] = {};
-        if (!timeSeriesData[countryCode3][yearNum]) timeSeriesData[countryCode3][yearNum] = {};
-        timeSeriesData[countryCode3][yearNum][measure] = 1;
-    });
+            // Only show bar if there's actual data for this country+measure+year
+            if (!timeSeriesData[countryCode3]) timeSeriesData[countryCode3] = {};
+            if (!timeSeriesData[countryCode3][yearNum]) timeSeriesData[countryCode3][yearNum] = {};
+            timeSeriesData[countryCode3][yearNum][measure] = 1;
+        });
+    }
+    fillTimeSeries();
 
     if (Object.keys(policyData).length === 0) {
         console.warn("Warning: No policy data was processed. Check if the 'country' column in the spreadsheet is named correctly and if the header row is not sorted with the data.");
@@ -1856,17 +1859,17 @@ Promise.all([
     }
 
     // Create color scales for different map types
-    const policyCounts = Object.values(policyData).reduce((acc: number[], value) => {
-        if (typeof value === 'number') {
-            acc.push(value);
-        }
-        return acc;
-    }, []);
-    const minPolicies = d3.min(policyCounts);
-    const maxPolicies = d3.max(policyCounts);
-    
-    const policyColorScale = d3.scaleSequential(d3.interpolateGreens)
-        .domain([minPolicies as number, maxPolicies as number]);
+    let minPolicies = 0;
+    let maxPolicies = 0;
+    const policyColorScale = d3.scaleSequential(d3.interpolateGreens);
+    // Recomputes the legend/color range from the current policyData (follows the filter)
+    function recomputePolicyScale() {
+        const policyCounts = Object.values(policyData).filter((value): value is number => typeof value === 'number');
+        minPolicies = policyCounts.length ? (d3.min(policyCounts) as number) : 0;
+        maxPolicies = policyCounts.length ? (d3.max(policyCounts) as number) : 0;
+        policyColorScale.domain([minPolicies, maxPolicies]);
+    }
+    recomputePolicyScale();
 
     // Create color scales for each target type
     const targetColorScales: { [key: string]: any } = {};
@@ -2133,9 +2136,13 @@ Promise.all([
                 .scale(europeScale));
     }
 
+    // Policy filter button handle (registered after the download menu; null until then)
+    let policyFilter: { setVisible(visible: boolean): void } | null = null;
+
     // Function to update map visualization
     // pass skipZoom=true to avoid resetting zoom (used for intra-mode filter changes)
     function updateMap(skipZoom: boolean = false) {
+        policyFilter?.setVisible(currentMapType === 'policies');
         const isRegulationsMode = currentMapType === 'regulations';
         setRegulationsVisible(isRegulationsMode);
         if (isRegulationsMode) {
@@ -3926,6 +3933,7 @@ const fmt1 = (v: any) => {
                                 });
                             } else {
                                 const allMatchingRows = policyCsv.filter((row: any) => {
+                                    if (!rowPasses(row, currentPolicyFilter, true)) return false;
                                     const cName = normalizePolicyCountryName(row[countryColumnName]);
                                     const m = row[measureColumnName] || 'Unknown';
                                     const code3 = countryNameMap[cName || ''];
@@ -4773,6 +4781,26 @@ const fmt1 = (v: any) => {
         XLSX.writeFile(wb, `${safeName}_data.xlsx`, { compression: true });
     }
 
+    async function downloadFilteredPolicyData(state: PolicyFilterState): Promise<void> {
+        const wb = XLSX.utils.book_new();
+        const infoSheet = await loadInfoSheetRows();
+        if (infoSheet) {
+            XLSX.utils.book_append_sheet(
+                wb,
+                XLSX.utils.json_to_sheet(infoSheet.rows, { header: infoSheet.headers }),
+                infoSheet.name
+            );
+        }
+        // Full filter including events: exactly the rows the map counts
+        const rows = policyCsv.filter((row: any) => rowPasses(row, state));
+        XLSX.utils.book_append_sheet(
+            wb,
+            XLSX.utils.json_to_sheet(rows, { header: resolveSheetHeaders(rows, policyCsv.columns) }),
+            'Policies'
+        );
+        XLSX.writeFile(wb, 'policy_data_filtered.xlsx', { compression: true });
+    }
+
     async function downloadCountryDataCsv(countryCode3: string, countryName: string): Promise<void> {
         const safeName = countryName.replace(/[^\w\-]+/g, '_');
         await downloadSheetsAsCsvZip(`${safeName}_data.zip`, buildCountrySheets(countryCode3));
@@ -4809,8 +4837,15 @@ const fmt1 = (v: any) => {
             onDownloadDataset: downloadFullDatasetFromMap,
             onDownloadDatasetCsv: downloadFullDatasetCsvFromMap,
         });
+        policyFilter = registerPolicyFilterMenu({
+            container: mapContainer,
+            rows: policyCsv,
+            onChange: (state) => { currentPolicyFilter = state; fillPolicyCounts(state); fillTimeSeries(); recomputePolicyScale(); updateMap(true); },
+            onDownload: downloadFilteredPolicyData,
+        });
+        policyFilter.setVisible(currentMapType === 'policies');
     }
-    
+
     // Hide loading indicator after initial map is loaded
     hideLoadingIndicator();
 
