@@ -422,14 +422,6 @@
             margin: 0;
         }
 
-        .submenu-option .submenu-option-note {
-            display: block;
-            font-size: 0.68em;
-            font-weight: 500;
-            opacity: 0.8;
-            margin-top: 2px;
-        }
-        
         /* Active states */
         .toggle-switch[data-active="policies"] .toggle-slider {
             left: 2px;
@@ -525,9 +517,7 @@
             display: none;
         }
         
-        /* Targets Submenu Styles */
-        .targets-submenu,
-        .climate-targets-submenu,
+        /* Regulations submenu */
         .regulations-submenu {
             position: absolute;
             top: 60px;
@@ -547,15 +537,11 @@
             overflow: hidden;
         }
         
-        .targets-submenu.visible,
-        .climate-targets-submenu.visible,
         .regulations-submenu.visible {
             opacity: 0.55;
             visibility: visible;
             transform: translateY(0) scale(1);
         }
-        .targets-submenu.visible:hover,
-        .climate-targets-submenu.visible:hover,
         .regulations-submenu.visible:hover {
             opacity: 0.98;
             background: linear-gradient(135deg, rgba(255, 255, 255, 0.97) 0%, rgba(241, 245, 249, 0.97) 100%);
@@ -578,13 +564,6 @@
             flex: 1;
         }
 
-        .submenu-note {
-            font-size: 10px;
-            font-weight: 400;
-            letter-spacing: 0;
-            opacity: 0.85;
-        }
-        
         .submenu-close {
             background: none;
             border: none;
@@ -606,172 +585,55 @@
             background-color: rgba(255, 255, 255, 0.2);
         }
         
-        .submenu-options {
-            padding: 8px;
-            max-height: 340px;
-            overflow-y: auto;
+        .target-filter-group {
+            min-width: 0;
+            padding: 0 10px 8px;
         }
-        
-        .filter-mode-wrapper {
-            padding: 8px 12px 4px 12px;
-            border-bottom: 1px solid rgba(203, 213, 225, 0.6);
-        }
-        .filter-mode-options { display: flex; gap: 8px; }
-        .mode-option {
-            flex: 1;
-            padding: 8px 10px;
-            background: none;
-            border: 1px solid rgba(100, 116, 139, 0.35);
-            border-radius: 8px;
-            text-align: center;
-            font-size: 12px;
+        .target-filter-group legend {
+            padding: 4px 0 6px;
+            font-size: 12.5px;
             font-weight: 600;
-            color: rgb(30, 41, 59);
-            cursor: pointer;
-            transition: all 0.2s ease;
+            color: var(--color-text);
         }
-        .mode-option:hover {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.08) 0%, rgba(51, 65, 85, 0.08) 100%);
-        }
-        .mode-option.active {
-            background: linear-gradient(135deg, rgb(30, 41, 59) 0%, rgb(51, 65, 85) 100%);
-            color: white;
-            border-color: transparent;
-            box-shadow: 0 2px 8px rgba(30, 41, 59, 0.3);
-        }
-
-        /* Year group UI */
-        .year-group-wrapper {
-            padding: 8px 12px 4px 12px;
-            border-bottom: 1px solid rgba(203, 213, 225, 0.6);
-        }
-        .year-group-title {
-            font-size: 12px;
-            font-weight: 700;
-            color: rgb(30, 41, 59);
-            margin-bottom: 6px;
-            text-align: center;
-        }
-        .year-group-options {
-            display: flex;
-            justify-content: center;
-            align-items: center;
+        .target-filter-choices {
+            display: grid;
             gap: 6px;
-        }
-        .year-option {
-            flex: 0 0 auto;
-            min-width: 64px;
-            padding: 8px 14px;
-            background: rgba(255, 255, 255, 0.6);
-            border: 1.5px solid rgba(71, 85, 105, 0.5);
-            border-radius: 8px;
-            text-align: center;
-            font-size: 11px;
-            font-weight: 700;
-            color: rgb(30, 41, 59);
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-        }
-        .year-option:hover {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.12) 0%, rgba(51, 65, 85, 0.12) 100%);
-            border-color: rgba(51, 65, 85, 0.65);
-            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-        }
-        .year-option.active {
-            background: linear-gradient(135deg, rgb(30, 41, 59) 0%, rgb(51, 65, 85) 100%);
-            color: white;
-            border-color: transparent;
-            box-shadow: 0 3px 10px rgba(30, 41, 59, 0.4);
-        }
-        
-        /* Climate Targets Submenu Styles */
-        .climate-targets-submenu {
-            position: absolute;
-            top: 60px;
-            left: 0;
-            width: 380px;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.58) 0%, rgba(241, 245, 249, 0.58) 100%);
-            border: 2px solid rgba(148, 163, 184, 0.45);
-            border-radius: 16px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1), 0 6px 20px rgba(0,0,0,0.07);
-            backdrop-filter: blur(14px);
-            opacity: 0;
-            visibility: hidden;
-            transform: translateY(-10px) scale(0.95);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 21; /* Slightly above toggle, still below modal */
-            max-height: 420px;
-            overflow: hidden;
-        }
-        
-        .climate-targets-submenu.visible {
-            opacity: 0.55;
-            visibility: visible;
-            transform: translateY(0) scale(1);
-        }
-        .climate-targets-submenu.visible:hover {
-            opacity: 0.98;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.97) 0%, rgba(241, 245, 249, 0.97) 100%);
-        }
-        
-        .submenu-option {
-            display: block;
-            width: 100%;
-            padding: 10px 12px;
-            margin: 2px 0;
-            background: rgba(255, 255, 255, 0.5);
-            border: 1px solid rgba(148, 163, 184, 0.4);
-            border-radius: 8px;
             text-align: left;
-            font-size: 12px;
-            font-weight: 600;
-            color: rgb(30, 41, 59);
-            cursor: pointer;
-            transition: all 0.2s ease;
+        }
+        .target-filter-years .target-filter-choices {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            text-align: center;
+        }
+        .target-filter-choices label {
             position: relative;
-            overflow: visible;
-            white-space: normal;
-            line-height: 1.2;
         }
-        
-        .submenu-option:hover {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.12) 0%, rgba(51, 65, 85, 0.12) 100%);
-            transform: translateX(4px);
-            color: rgb(15, 23, 42);
-            border-color: rgba(100, 116, 139, 0.55);
+        .target-filter-choices label > span {
+            display: block;
+            padding: 7px 9px;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            color: var(--color-primary-dark);
+            font-size: 12.5px;
+            font-weight: 600;
+            cursor: pointer;
         }
-        
-        .submenu-option.active {
-            background: linear-gradient(135deg, rgb(30, 41, 59) 0%, rgb(51, 65, 85) 100%);
-            color: white;
-            transform: translateX(4px);
-            box-shadow: 0 3px 10px rgba(30, 41, 59, 0.35);
-            border-color: transparent;
+        .target-filter-choices label:hover > span {
+            background: var(--color-surface-light);
         }
-        
-        .submenu-option.active:hover {
-            background: linear-gradient(135deg, rgb(51, 65, 85) 0%, rgb(71, 85, 105) 100%);
-            color: white;
+        .target-filter-choices input:checked + span {
+            background: var(--color-primary);
+            border-color: var(--color-primary);
+            color: #fff;
         }
-        
-        /* Scrollbar styling for submenu */
-        .submenu-options::-webkit-scrollbar {
-            width: 4px;
+        .target-filter-choices input:focus-visible + span {
+            outline: 2px solid var(--color-primary);
+            outline-offset: 2px;
         }
-        
-        .submenu-options::-webkit-scrollbar-track {
-            background: rgba(203, 213, 225, 0.3);
-            border-radius: 2px;
-        }
-        
-        .submenu-options::-webkit-scrollbar-thumb {
-            background: rgba(30, 41, 59, 0.4);
-            border-radius: 2px;
-        }
-        
-        .submenu-options::-webkit-scrollbar-thumb:hover {
-            background: rgba(30, 41, 59, 0.6);
+        .target-filter-choices small {
+            display: block;
+            margin-top: 2px;
+            font-size: 11px;
+            font-weight: 400;
         }
         .country:hover {
             stroke: #333;
@@ -934,7 +796,7 @@
             <!-- How to use: persistent helper (no background, smaller italic text) -->
             <div class="mx-auto max-w-5xl mb-4" id="bc-worldmap-help">
                 <p class="text-left italic" style="font-size: 0.85rem; color: #334155;">
-                    Drag to pan and scroll or pinch to zoom. Click any country to open its dashboard (Mostly For Europe as yet); In the dashboard charts, hover over policy cells in the timeline for a quick summary, or click for full details.
+                    Drag to pan and scroll or pinch to zoom. Click a country to open its dashboard. Hover over or tap a policy cell in the timeline to see details.
                 </p>
             </div>
             <div class="mx-auto max-w-5xl mb-4 hidden" id="bc-buildcodes-help">
@@ -981,33 +843,6 @@
                             <div class="toggle-option third">Renewables Targets</div>
                             <div class="toggle-option fourth">Climate Targets</div>
                             <div class="toggle-option fifth">Siting Regulations</div>
-                        </div>
-
-                        <!-- Targets Submenu -->
-                        <div class="targets-submenu" id="targetsSubmenu">
-                            <div class="submenu-header">
-                                <span class="submenu-title">Target Types</span>
-                                <button class="submenu-close" id="submenuClose">&times;</button>
-                            </div>
-                            <div class="year-group-wrapper" id="yearGroupWrapper">
-                                <div class="year-group-title">Targeted Year (latest)</div>
-                                <div class="year-group-options" id="yearGroupOptions"></div>
-                            </div>
-                            <div class="submenu-options" id="submenuOptions">
-                                <!-- Target type options will be dynamically populated -->
-                            </div>
-                        </div>
-
-                        <!-- Climate Targets Submenu -->
-                        <div class="climate-targets-submenu" id="climateTargetsSubmenu">
-                            <div class="submenu-header">
-                                <span class="submenu-title">Climate Targets <span class="submenu-note">(% as stated by each country)</span></span>
-                                <button class="submenu-close" id="climateSubmenuClose">&times;</button>
-                            </div>
-                            <div class="year-group-wrapper" id="climateYearGroupWrapper">
-                                <div class="year-group-title">Targeted Year (latest)</div>
-                                <div class="year-group-options" id="climateYearGroupOptions"></div>
-                            </div>
                         </div>
 
                         <!-- Regulations Submenu -->

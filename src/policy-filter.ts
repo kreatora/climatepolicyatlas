@@ -188,7 +188,8 @@ const ensureStyles = () => {
         .cpa-filter-menu { position: absolute; bottom: 16px; right: 70px; z-index: 30; }
         .cpa-filter-menu[hidden] { display: none; }
         .cpa-filter-menu .cpa-download-trigger { position: relative; }
-        .cpa-filter-menu.is-open .cpa-download-trigger {
+        .cpa-filter-menu.is-open .cpa-download-trigger,
+        .cpa-filter-menu .cpa-download-trigger:hover {
             background: rgba(255, 255, 255, 0.94);
             border-color: var(--color-primary-light, rgb(100, 140, 88));
             box-shadow: 0 5px 18px rgba(15, 23, 42, 0.15);
@@ -261,7 +262,7 @@ const ensureStyles = () => {
         .cpa-filter-panel .cpa-filter-children {
             margin-left: 18px; padding-left: 8px; border-left: 1px solid var(--color-border, rgb(176, 192, 176));
         }
-        .cpa-filter-panel input[type=checkbox], .cpa-filter-panel input[type=range] {
+        .cpa-filter-panel input[type=checkbox], .cpa-filter-panel input[type=range], .cpa-filter-panel input[type=radio] {
             accent-color: var(--color-primary-light, rgb(100, 140, 88));
         }
         .cpa-filter-panel .cpa-filter-note {
@@ -310,26 +311,15 @@ const ensureStyles = () => {
         .cpa-filter-panel .cpa-filter-download:hover { background: var(--color-primary-light, rgb(100, 140, 88)); }
         .cpa-filter-panel .cpa-filter-download:disabled { opacity: 0.6; cursor: default; }
         @media (max-width: 640px) {
-            .cpa-filter-menu .cpa-filter-panel { right: -54px; width: min(92vw, 300px); }
+            .cpa-filter-menu .cpa-filter-panel { right: -54px; width: min(calc(100vw - 64px), 300px); }
             .cpa-filter-menu.is-open .cpa-filter-panel { transform: translateY(0); }
         }
     `;
     document.head.appendChild(style);
 };
 
-export function registerPolicyFilterMenu(opts: {
-    container: HTMLElement; rows: PolicyRow[];
-    onChange: (state: PolicyFilterState) => void;
-    onDownload: (state: PolicyFilterState) => void | Promise<void>;
-}): { setVisible(visible: boolean): void } {
+export function registerMapFilterMenu(container: HTMLElement, title: string) {
     ensureStyles();
-    const { container, rows, onChange } = opts;
-    const defaults = defaultFilterState(rows);
-    const baseline = serialize(defaults);
-    const state = cloneState(defaults);
-    const syncers: (() => void)[] = [];
-    const syncAll = () => syncers.forEach((f) => f());
-
     if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
 
     const root = document.createElement('div');
@@ -338,8 +328,8 @@ export function registerPolicyFilterMenu(opts: {
     const trigger = document.createElement('button');
     trigger.type = 'button';
     trigger.className = 'cpa-download-trigger';
-    trigger.setAttribute('aria-label', 'Filter policies');
-    trigger.setAttribute('title', 'Filter policies');
+    trigger.setAttribute('aria-label', title);
+    trigger.title = title;
     trigger.setAttribute('aria-haspopup', 'dialog');
     trigger.setAttribute('aria-expanded', 'false');
     trigger.innerHTML = FILTER_ICON_SVG;
@@ -347,21 +337,75 @@ export function registerPolicyFilterMenu(opts: {
     const panel = document.createElement('aside');
     panel.className = 'cpa-download-sidebar cpa-filter-panel';
     panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-label', 'Filter policies');
+    panel.setAttribute('aria-label', title);
 
     const header = document.createElement('div');
     header.className = 'cpa-download-sidebar-header';
-    header.innerHTML = '<span>Filter policies</span>';
+    const heading = document.createElement('span');
+    heading.textContent = title;
     const resetBtn = document.createElement('button');
     resetBtn.type = 'button';
     resetBtn.className = 'cpa-filter-reset';
     resetBtn.textContent = 'Reset';
-    header.appendChild(resetBtn);
+    header.append(heading, resetBtn);
     panel.appendChild(header);
 
+    const setOpen = (open: boolean) => {
+        root.classList.toggle('is-open', open);
+        trigger.setAttribute('aria-expanded', String(open));
+    };
+    trigger.addEventListener('click', () => {
+        setOpen(!root.classList.contains('is-open'));
+    });
+    document.addEventListener('click', (event) => {
+        if (!root.contains(event.target as Node)) setOpen(false);
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && root.classList.contains('is-open')) {
+            setOpen(false);
+            trigger.focus();
+        }
+    });
+
+    root.append(trigger, panel);
+    container.appendChild(root);
+    return {
+        panel,
+        resetBtn,
+        setActive(active: boolean) {
+            root.classList.toggle('has-active', active);
+        },
+        setVisible(visible: boolean) {
+            root.hidden = !visible;
+            if (!visible) setOpen(false);
+        },
+    };
+}
+
+export function registerPolicyFilterMenu(opts: {
+    container: HTMLElement; rows: PolicyRow[];
+    onChange: (state: PolicyFilterState) => void;
+    onDownload: (state: PolicyFilterState) => void | Promise<void>;
+}): { setVisible(visible: boolean): void } {
+    const { container, rows, onChange } = opts;
+    const defaults = defaultFilterState(rows);
+    const baseline = serialize(defaults);
+    const state = cloneState(defaults);
+    const syncers: (() => void)[] = [];
+    const syncAll = () => syncers.forEach((f) => f());
+    const menu = registerMapFilterMenu(container, 'Filter policies');
+    const { panel, resetBtn } = menu;
+
+    const techLabels = firstSeen(rows, 'Technology_type', (v) => v, '');
+    techLabels.delete('');
+    const techKeys = [...techLabels.keys()];
+
     const commit = () => {
+        // Keep uncategorized rows eligible only when the technology filter is unrestricted.
+        if (defaults.techs.has('') && techKeys.every((key) => state.techs.has(key))) state.techs.add('');
+        else state.techs.delete('');
         syncAll();
-        root.classList.toggle('has-active', serialize(state) !== baseline);
+        menu.setActive(serialize(state) !== baseline);
         onChange(cloneState(state));
     };
 
@@ -481,7 +525,6 @@ export function registerPolicyFilterMenu(opts: {
 
     // Data-derived options
     const measureLabels = firstSeen(rows, 'measure', (v) => v.toLowerCase(), 'Unspecified');
-    const techLabels = firstSeen(rows, 'Technology_type', (v) => v, 'Unspecified');
     const versionLabels = firstSeen(rows, 'added_in_version', (v) => v, 'Unknown');
     const eventCounts = new Map<string, number>();
     for (const r of rows) for (const e of eventTypes(r)) eventCounts.set(e, (eventCounts.get(e) ?? 0) + 1);
@@ -492,8 +535,19 @@ export function registerPolicyFilterMenu(opts: {
         bulkSet(d, 'measures', [...measureLabels.keys()]);
         renderGroups(d, buildTree(measureLabels, INSTRUMENT_FAMILIES), 'measures');
     });
-    section('Technology', countOf('techs', [...techLabels.keys()]), (d) => {
-        bulkSet(d, 'techs', [...techLabels.keys()]);
+    const techCount = countOf('techs', techKeys);
+    section('Technology', () => {
+        if (state.techs.size === 1) {
+            const label = techLabels.get(state.techs.values().next().value ?? '');
+            if (label && techKeys.length > 1) return { text: label, all: false };
+        }
+        return techCount();
+    }, (d) => {
+        const note = document.createElement('p');
+        note.className = 'cpa-filter-note';
+        note.innerHTML = 'Select <strong>PV field</strong> alone for field-specific policies. Policies covering all renewable technologies are under <strong>All renewables</strong>.';
+        d.appendChild(note);
+        bulkSet(d, 'techs', techKeys);
         renderGroups(d, buildTree(techLabels, TECH_GROUPS), 'techs');
     });
 
@@ -608,33 +662,6 @@ export function registerPolicyFilterMenu(opts: {
         commit();
     });
 
-    const setOpen = (open: boolean) => {
-        root.classList.toggle('is-open', open);
-        trigger.setAttribute('aria-expanded', String(open));
-    };
-    trigger.addEventListener('click', (event) => {
-        event.preventDefault();
-        setOpen(!root.classList.contains('is-open'));
-    });
-    document.addEventListener('click', (event) => {
-        if (!root.contains(event.target as Node)) setOpen(false);
-    });
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && root.classList.contains('is-open')) {
-            setOpen(false);
-            trigger.focus();
-        }
-    });
-
     syncAll();
-    root.appendChild(panel);
-    root.appendChild(trigger);
-    container.appendChild(root);
-
-    return {
-        setVisible(visible: boolean) {
-            root.hidden = !visible;
-            if (!visible) setOpen(false);
-        },
-    };
+    return menu;
 }

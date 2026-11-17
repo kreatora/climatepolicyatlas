@@ -9,7 +9,7 @@ import { resolveDatasetKey, getDatasetMetadata } from './data-metadata';
 import { registerMapHost, getMapHost } from './map-host';
 import { renderBuildCodesOnMap, getBuildCodeAsOfYear } from './build-codes';
 import { downloadFullDataset, downloadFullDatasetCsv } from './dataset-download';
-import { registerPolicyFilterMenu, rowPasses, defaultFilterState, type PolicyFilterState } from './policy-filter';
+import { registerMapFilterMenu, registerPolicyFilterMenu, rowPasses, defaultFilterState, type PolicyFilterState } from './policy-filter';
 
 /** Remove legacy in-chart logo watermarks (logo now lives in the modal header bar). */
 function removeSvgLogoWatermarks(root: ParentNode) {
@@ -668,7 +668,7 @@ function parseSpreadsheetOrCsv(ab: ArrayBuffer, label: string): any[] {
 // Global variables to store all data
 type MapType = 'policies' | 'ev' | 'targets' | 'climateTargets' | 'regulations';
 let currentMapType: MapType = 'policies';
- let currentTargetType: RenewableTargetType = 'Electricity'; // Default target type
+let currentTargetType: RenewableTargetType = 'Electricity';
 const BC_TECH_FILTER_LABEL: Record<'wind' | 'solar' | 'ev', string> = {
     wind: 'Wind',
     solar: 'Solar',
@@ -677,14 +677,12 @@ const BC_TECH_FILTER_LABEL: Record<'wind' | 'solar' | 'ev', string> = {
 
 let bcTechFilter: 'wind' | 'solar' | 'ev' = 'wind';
 let bcBindFilter = 'all';
- type TargetYearGroup = '2020' | '2030' | '2050';
- const TARGET_YEAR_GROUP_ORDER: TargetYearGroup[] = ['2020', '2030', '2050'];
- // Year-group filter for targets view
- let currentTargetYearGroup: TargetYearGroup = '2030';
- // Filter mode: always use year-group filtering (no UI toggle)
- let currentTargetFilterMode: 'all' | 'group' = 'group';
- // Year-group filter for climate targets view
- let currentClimateTargetYearGroup: TargetYearGroup = '2030';
+type TargetYearGroup = '2020' | '2030' | '2050';
+type TargetMapType = 'targets' | 'climateTargets';
+const TARGET_YEAR_GROUP_ORDER: TargetYearGroup[] = ['2020', '2030', '2050'];
+const DEFAULT_TARGET_YEAR_GROUP: TargetYearGroup = '2030';
+let currentTargetYearGroup: TargetYearGroup = DEFAULT_TARGET_YEAR_GROUP;
+let currentClimateTargetYearGroup: TargetYearGroup = DEFAULT_TARGET_YEAR_GROUP;
 
  // Helper to map a target year to a year group
  function getYearGroup(year: number): TargetYearGroup | null {
@@ -723,49 +721,7 @@ let bcBindFilter = 'all';
      return null;
  }
 
- function syncTargetYearGroupUI(scope: 'renewable' | 'climate' | 'both' = 'both') {
-     if (scope === 'renewable' || scope === 'both') {
-         document.querySelectorAll('#yearGroupOptions .year-option').forEach((button) => {
-             button.classList.toggle(
-                 'active',
-                 (button as HTMLElement).dataset.year === currentTargetYearGroup
-             );
-         });
-     }
-     if (scope === 'climate' || scope === 'both') {
-         document.querySelectorAll('#climateYearGroupOptions .year-option').forEach((button) => {
-             button.classList.toggle(
-                 'active',
-                 (button as HTMLElement).dataset.year === currentClimateTargetYearGroup
-             );
-         });
-     }
- }
-
- function setTargetYearGroup(
-     group: TargetYearGroup,
-     scope: 'renewable' | 'climate' | 'both' = 'both',
-     refreshMap = false
- ) {
-     if (scope === 'renewable' || scope === 'both') {
-         currentTargetYearGroup = group;
-     }
-     if (scope === 'climate' || scope === 'both') {
-         currentClimateTargetYearGroup = group;
-     }
-     syncTargetYearGroupUI(scope);
-     if (refreshMap && updateMapFunction) {
-         updateMapFunction();
-     }
- }
-
 let allData: any = {};
-
-// Flag to track if submenu has been initialized
-let submenuInitialized = false;
-
-// Global reference to updateMap function
-let updateMapFunction: (() => void) | null = null;
 
 /** Choropleth fill fade when switching map modes, filters, or target types. */
 const MAP_COLOR_TRANSITION_MS = 750;
@@ -804,203 +760,110 @@ function getTargetTypeDisplayName(targetType: string): string {
     return displayNameMap[normalizedType] || targetType;
 }
 
-// Function to initialize targets submenu
-function initializeTargetsSubmenu() {
-    const submenuOptions = document.getElementById('submenuOptions');
-    const submenu = document.getElementById('targetsSubmenu');
-    const submenuClose = document.getElementById('submenuClose');
-    const yearGroupOptions = document.getElementById('yearGroupOptions');
-    const yearGroupWrapper = document.getElementById('yearGroupWrapper');
-    const filterModeOptions = document.getElementById('filterModeOptions');
-    
-    if (!submenuOptions || !submenu || !submenuClose) return;
-    
-    // Get available target types
-    const targetTypes = allData.targets.allTargetTypes || [];
-    console.log('Initializing submenu with target types:', targetTypes);
-    
-    // Only initialize if not already done or if target types have changed
-    if (!submenuInitialized || submenuOptions.children.length !== targetTypes.length) {
-        // Clear existing options
-        submenuOptions.innerHTML = '';
-        
-        // Filter mode UI removed; always show year-group controls
-        if (yearGroupWrapper) yearGroupWrapper.classList.remove('hidden');
-        
-        // Initialize year-group options once
-        if (yearGroupOptions && yearGroupOptions.children.length === 0) {
-            const groups: TargetYearGroup[] = ['2020', '2030', '2050'];
-            groups.forEach(group => {
-                const btn = document.createElement('button');
-                btn.className = 'year-option';
-                btn.textContent = group;
-                btn.dataset.year = group;
-                btn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setTargetYearGroup(group, 'renewable', true);
-                });
-                yearGroupOptions.appendChild(btn);
-            });
-            syncTargetYearGroupUI('renewable');
+function addTargetFilterChoices<T extends string>(
+    panel: HTMLElement,
+    name: string,
+    title: string,
+    options: { value: T; label: string; note?: string }[],
+    selected: T,
+    onChange: (value: T) => void
+) {
+    const fieldset = document.createElement('fieldset');
+    fieldset.className = 'target-filter-group';
+    const legend = document.createElement('legend');
+    legend.textContent = title;
+    const choices = document.createElement('div');
+    choices.className = 'target-filter-choices';
+    const inputs = new Map<T, HTMLInputElement>();
+    for (const option of options) {
+        const label = document.createElement('label');
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = name;
+        input.value = option.value;
+        input.checked = option.value === selected;
+        input.className = 'sr-only';
+        input.addEventListener('change', () => onChange(option.value));
+        inputs.set(option.value, input);
+        const text = document.createElement('span');
+        text.textContent = option.label;
+        if (option.note) {
+            const note = document.createElement('small');
+            note.textContent = option.note;
+            text.appendChild(note);
         }
-        
-        // Create submenu options for each target type
-        targetTypes.forEach((targetType: string) => {
-            const option = document.createElement('button');
-            option.className = 'submenu-option';
-            const displayName = getTargetTypeDisplayName(targetType);
-            console.log(`Target type "${targetType}" → Display name "${displayName}"`);
-            
-            // Add explanation for specific target types
-            let explanation = '';
-            const normalizedType = targetType.trim().toLowerCase();
-            if (normalizedType === 'electricity') {
-                explanation = '<br><span style="font-size: 0.75em; opacity: 0.8; font-weight: normal;">% of renewable electricity in a power system generation</span>';
-            } else if (normalizedType === 'final energy') {
-                explanation = '<br><span style="font-size: 0.75em; opacity: 0.8; font-weight: normal;">% of renewable energy in final energy consumption</span>';
-            }
+        label.append(input, text);
+        choices.appendChild(label);
+    }
+    fieldset.append(legend, choices);
+    panel.appendChild(fieldset);
+    return {
+        fieldset,
+        select(value: T) {
+            const input = inputs.get(value);
+            if (input) input.checked = true;
+        },
+    };
+}
 
-            option.innerHTML = `${displayName}${explanation}`;
-            option.dataset.targetType = targetType;
-            
-            // Set active state for current target type
-            if (targetType === currentTargetType) {
-                option.classList.add('active');
-            }
-            
-            // Add click event listener
-             option.addEventListener('click', (e) => {
-                 e.preventDefault();
-                 e.stopPropagation();
-                 console.log('Target type clicked:', targetType);
-                 
-                 // Update current target type and map type
-                 currentTargetType = targetType as RenewableTargetType;
-                 currentMapType = 'targets';
-                 
-                 console.log('Updated currentTargetType to:', currentTargetType);
-                 
-                 // Update active state
-                 submenuOptions.querySelectorAll('.submenu-option').forEach(opt => {
-                     opt.classList.remove('active');
-                 });
-                 option.classList.add('active');
-                 
-                 // Update map with new target type
-                  console.log('Calling updateMap for target type:', targetType);
-                  if (updateMapFunction) {
-                      updateMapFunction();
-                  } else {
-                      console.error('updateMap function not available yet');
-                  }
-                 
-                 // Don't hide submenu immediately - let user see the change and potentially select other types
-                 // hideTargetsSubmenu();
-             });
-            
-            submenuOptions.appendChild(option);
-        });
-        
-        // Add close button event listener (only once)
-        if (!submenuInitialized) {
-            submenuClose.addEventListener('click', hideTargetsSubmenu);
+function registerTargetFilterMenu(
+    container: HTMLElement,
+    mode: TargetMapType,
+    onChange: () => void,
+    targetTypes: RenewableTargetType[] = []
+) {
+    const isClimate = mode === 'climateTargets';
+    const menu = registerMapFilterMenu(container, isClimate ? 'Filter climate targets' : 'Filter renewables targets');
+    const defaultTargetType = currentTargetType;
+    const getYear = () => isClimate ? currentClimateTargetYearGroup : currentTargetYearGroup;
+    const setYear = (year: TargetYearGroup) => {
+        if (isClimate) currentClimateTargetYearGroup = year;
+        else currentTargetYearGroup = year;
+    };
+    const commit = () => {
+        menu.setActive(getYear() !== DEFAULT_TARGET_YEAR_GROUP || (!isClimate && currentTargetType !== defaultTargetType));
+        onChange();
+    };
+
+    if (isClimate) {
+        const note = document.createElement('p');
+        note.className = 'cpa-filter-note';
+        note.textContent = 'Targets are percentages as stated by each country.';
+        menu.panel.appendChild(note);
+    }
+    const years = addTargetFilterChoices(
+        menu.panel, `${mode}-year`, 'Target year (latest)',
+        TARGET_YEAR_GROUP_ORDER.map((year) => ({ value: year, label: year })),
+        getYear(), (year) => {
+            setYear(year);
+            commit();
         }
-        
-        submenuInitialized = true;
-    } else {
-        // Just update active states if submenu already exists
-        submenuOptions.querySelectorAll('.submenu-option').forEach(opt => {
-            opt.classList.remove('active');
-            const optElement = opt as HTMLElement;
-            if (optElement.dataset.targetType === currentTargetType) {
-                opt.classList.add('active');
-            }
-        });
-    }
-}
+    );
+    years.fieldset.classList.add('target-filter-years');
 
-// Function to show targets submenu
-function showTargetsSubmenu() {
-    // Initialize submenu first to populate target types
-    initializeTargetsSubmenu();
-    
-    const submenu = document.getElementById('targetsSubmenu');
-    if (submenu) {
-        submenu.classList.add('visible');
-    }
-}
-
-// Function to hide targets submenu
-function hideTargetsSubmenu() {
-    const submenu = document.getElementById('targetsSubmenu');
-    if (submenu) {
-        submenu.classList.remove('visible');
-    }
-}
-
-// Function to initialize climate targets submenu
-let climateSubmenuInitialized = false;
-
-function initializeClimateTargetsSubmenu() {
-    const climateYearGroupOptions = document.getElementById('climateYearGroupOptions');
-    const climateSubmenu = document.getElementById('climateTargetsSubmenu');
-    const climateSubmenuClose = document.getElementById('climateSubmenuClose');
-    const climateYearGroupWrapper = document.getElementById('climateYearGroupWrapper');
-    
-    if (!climateYearGroupOptions || !climateSubmenu || !climateSubmenuClose) return;
-    
-    console.log('Initializing climate targets submenu');
-    
-    // Only initialize if not already done
-    if (!climateSubmenuInitialized) {
-        // Always show year-group controls
-        if (climateYearGroupWrapper) climateYearGroupWrapper.classList.remove('hidden');
-        
-        // Initialize year-group options
-        if (climateYearGroupOptions && climateYearGroupOptions.children.length === 0) {
-            const groups: TargetYearGroup[] = ['2020', '2030', '2050'];
-            groups.forEach(group => {
-                const btn = document.createElement('button');
-                btn.className = 'year-option';
-                btn.textContent = group;
-                btn.dataset.year = group;
-                btn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setTargetYearGroup(group, 'climate', true);
-                });
-                climateYearGroupOptions.appendChild(btn);
-            });
-            syncTargetYearGroupUI('climate');
+    const typeNotes: Record<RenewableTargetType, string> = {
+        Electricity: 'Share of electricity generated from renewable sources',
+        'Final energy': 'Share of final energy consumption from renewable sources',
+    };
+    const types = targetTypes.length > 0 ? addTargetFilterChoices(
+        menu.panel, 'renewable-target-type', 'Target type',
+        targetTypes.map((type) => ({ value: type, label: getTargetTypeDisplayName(type), note: typeNotes[type] })),
+        currentTargetType, (type) => {
+            currentTargetType = type;
+            commit();
         }
-        
-        // Add close button event listener (only once)
-        if (!climateSubmenuInitialized) {
-            climateSubmenuClose.addEventListener('click', hideClimateTargetsSubmenu);
+    ) : null;
+
+    menu.resetBtn.addEventListener('click', () => {
+        setYear(DEFAULT_TARGET_YEAR_GROUP);
+        years.select(DEFAULT_TARGET_YEAR_GROUP);
+        if (types) {
+            currentTargetType = defaultTargetType;
+            types.select(defaultTargetType);
         }
-        
-        climateSubmenuInitialized = true;
-    }
-}
-
-// Function to show climate targets submenu
-function showClimateTargetsSubmenu() {
-    // Initialize submenu first
-    initializeClimateTargetsSubmenu();
-    
-    const submenu = document.getElementById('climateTargetsSubmenu');
-    if (submenu) {
-        submenu.classList.add('visible');
-    }
-}
-
-// Function to hide climate targets submenu
-function hideClimateTargetsSubmenu() {
-    const submenu = document.getElementById('climateTargetsSubmenu');
-    if (submenu) {
-        submenu.classList.remove('visible');
-    }
+        commit();
+    });
+    return menu;
 }
 
 function showRegulationsSubmenu() {
@@ -2136,13 +1999,17 @@ Promise.all([
                 .scale(europeScale));
     }
 
-    // Policy filter button handle (registered after the download menu; null until then)
-    let policyFilter: { setVisible(visible: boolean): void } | null = null;
+    const filterMenus: Partial<Record<MapType, { setVisible(visible: boolean): void }>> = {};
+    function syncFilterVisibility() {
+        for (const [mode, menu] of Object.entries(filterMenus)) {
+            menu.setVisible(mode === currentMapType);
+        }
+    }
 
     // Function to update map visualization
     // pass skipZoom=true to avoid resetting zoom (used for intra-mode filter changes)
     function updateMap(skipZoom: boolean = false) {
-        policyFilter?.setVisible(currentMapType === 'policies');
+        syncFilterVisibility();
         const isRegulationsMode = currentMapType === 'regulations';
         setRegulationsVisible(isRegulationsMode);
         if (isRegulationsMode) {
@@ -2165,16 +2032,7 @@ Promise.all([
         if (!skipZoom) {
             updateMapZoom(currentMapType);
         }
-        
-        // Initialize submenu if switching to targets
-        if (currentMapType === 'targets') {
-            initializeTargetsSubmenu();
-        }
     }
-    
-    // Assign wrapper for intra-mode changes to avoid zoom reset
-    // Submenu interactions call updateMapFunction(); main mode switches call updateMap() directly
-    updateMapFunction = () => updateMap(true);
 
     // Show dashboard interaction hints only once (first country click)
     let hasShownDashboardHints = false;
@@ -2334,7 +2192,9 @@ const fmt1 = (v: any) => {
                         .style('box-shadow', '0 4px 10px rgba(0,0,0,0.15)')
                         .style('pointer-events', 'none')
                         .style('opacity', '0.95')
-                        .text('These graphs are interactive. Click to see details.')
+                        .text(currentMapType === 'policies' || currentMapType === 'ev'
+                            ? 'Hover over or tap a policy cell for details.'
+                            : 'These graphs are interactive. Click to see details.')
                         .transition()
                         .delay(3500)
                         .duration(500)
@@ -3578,7 +3438,7 @@ const fmt1 = (v: any) => {
                             `<strong>How to read this chart</strong><br>` +
                             `Each <strong>row</strong> is a policy instrument type (e.g. FIT, auction).<br>` +
                             `Each <strong>column</strong> is a year.<br>` +
-                            `<span style="color:#94a3b8">Hover over any cell for details.</span>`
+                            `<span style="color:#94a3b8">Hover over or tap a cell for details.</span>`
                         );
                     infoG.on('mouseenter', () => htrtcTip.style('visibility', 'visible'))
                          .on('mouseleave', () => htrtcTip.style('visibility', 'hidden'));
@@ -3617,45 +3477,47 @@ const fmt1 = (v: any) => {
                     sortedPolicyTypes.forEach(m => { if (yearly[y]?.[m]) cells.push({ year: y, measure: m }); });
                 });
 
-                // Track the currently open popup to enable toggle-close behavior
-                let currentPopupKey: string | null = null;
-                // Track if the popup was opened by hover (so mouseout can close it)
-                let hoverPopupKey: string | null = null;
-                // Debounce timer to avoid flicker when popup overlaps cell
-                let hoverCloseTimer: ReturnType<typeof setTimeout> | null = null;
+                let preview: { anchor: SVGRectElement; box: HTMLDivElement } | null = null;
 
-                // Policy detail popup - handles both RE Support and EV Support modes
-                function showPolicyDetailPopup(measure: string, year: number, rows: any[], isEv: boolean = false) {
-                    const parent = document.getElementById('modal-content');
-                    if (!parent) return;
-                    parent.querySelectorAll('.policy-detail-popup').forEach(el => el.remove());
+                function closePreview() {
+                    preview?.box.remove();
+                    preview = null;
+                }
+
+                function getPolicyDetailRows({ measure, year }: typeof cells[number]): any[] {
+                    if (isEvMode) {
+                        return evCsv.filter((row: any) => {
+                            const code = String(row[evCountryCodeCol] ?? '').trim().toUpperCase();
+                            const changed = String(row[evPolicyChangedDetailCol] ?? '').trim().toLowerCase();
+                            const introducedYear = Number(row[evYearCol]);
+                            return code === countryCode3 && (row[evMeasureCol] || 'Unknown') === measure
+                                && changed === 'introduced' && Number.isFinite(introducedYear) && introducedYear <= year;
+                        });
+                    }
+                    return policyCsv.filter((row: any) => {
+                        if ((row[measureColumnName] || 'Unknown') !== measure || Number(row[yearColumnName]) !== year) return false;
+                        const country = normalizePolicyCountryName(row[countryColumnName]);
+                        return countryNameMap[country || ''] === countryCode3 && rowPasses(row, currentPolicyFilter, true);
+                    });
+                }
+
+                function createPolicyDetailBox(cell: typeof cells[number]) {
+                    const { measure, year } = cell;
                     const box = document.createElement('div');
-                    box.className = 'policy-detail-popup';
+                    box.className = 'policy-detail-popup policy-detail-preview';
                     box.style.position = 'absolute';
-                    // Responsive sizing: ~85% of content area on desktop, 95% on small screens
-                    const parentRect = parent.getBoundingClientRect();
-                    const isNarrow = parentRect.width < 768;
-                    box.style.right = isNarrow ? 'auto' : '24px';
-                    box.style.left = isNarrow ? '50%' : 'auto';
-                    box.style.transform = isNarrow ? 'translateX(-50%)' : 'none';
-                    box.style.bottom = isNarrow ? '16px' : '24px';
-                    // Width: keep compact on desktop, full on mobile
-                    box.style.width = isNarrow ? '95%' : 'auto';
-                    box.style.maxWidth = isNarrow ? '95%' : '720px';
-                    // Height: take up to ~85% of modal content height
-                    box.style.maxHeight = '85%';
-                    box.style.overflowY = 'auto';
+                    const isNarrow = modalContent!.getBoundingClientRect().width < 768;
+                    box.setAttribute('aria-hidden', 'true');
+                    box.style.pointerEvents = 'none';
+                    box.style.width = 'max-content';
+                    box.style.maxWidth = 'min(300px, calc(100% - 16px))';
                     box.style.background = 'rgba(255,255,255,0.95)';
                     box.style.border = '1px solid #e5e7eb';
                     box.style.borderRadius = '12px';
                     box.style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)';
-                    box.style.padding = isNarrow ? '12px' : '14px';
+                    box.style.padding = '10px';
                     box.style.zIndex = '1000';
                     const title = document.createElement('div');
-                    title.style.display = 'flex';
-                    title.style.justifyContent = 'space-between';
-                    title.style.alignItems = 'flex-start';
-                    title.style.marginBottom = '8px';
                     // Format measure for display: Title Case by default; if exactly FIT/TGC, use all caps
                     function formatPolicyTypeDisplay(m: string): string {
                         const mm = (m || '').trim();
@@ -3666,26 +3528,14 @@ const fmt1 = (v: any) => {
                         return mm.replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
                     }
                     const formattedMeasure = formatPolicyTypeDisplay(measure);
-                    title.innerHTML = `<span style="font-weight:600; color:#111827; font-size:${isNarrow ? '14px' : '16px'}; line-height:1.3; white-space:normal; word-break:break-word; padding-right:10px;">${countryName} — ${formattedMeasure} (${year})</span>`;
-                    const close = document.createElement('button');
-                    close.textContent = '×';
-                    close.style.fontSize = '18px';
-                    close.style.color = '#6b7280';
-                    close.style.border = 'none';
-                    close.style.background = 'none';
-                    close.style.cursor = 'pointer';
-                    close.onclick = () => {
-                        box.remove();
-                        // Clear any active popup key when closing via the close button
-                        try { (currentPopupKey as any) = null; } catch {}
-                    };
-                    title.appendChild(close);
+                    title.style.cssText = 'margin-bottom:8px;font-weight:600;color:#111827;font-size:14px;line-height:1.3;overflow-wrap:anywhere';
+                    title.textContent = `${countryName} — ${formattedMeasure} (${year})`;
                     box.appendChild(title);
                     const list = document.createElement('div');
                     list.style.display = 'flex';
                     list.style.flexDirection = 'column';
                     list.style.gap = '8px';
-                    const limited = rows.slice(0, 5);
+                    const limited = getPolicyDetailRows(cell).slice(0, 5);
                     if (limited.length === 0) {
                         list.innerHTML = `<div style="color:#6b7280">No specific policies matched.</div>`;
                     } else {
@@ -3695,6 +3545,7 @@ const fmt1 = (v: any) => {
                             item.style.borderRadius = '8px';
                             item.style.background = '#f9fafb';
                             item.style.border = '1px solid #e5e7eb';
+                            item.style.overflowWrap = 'anywhere';
                             // Robust field accessor: try exact match, then case-insensitive match
                             const f = (name: string) => {
                                 if (r[name] !== undefined) return r[name];
@@ -3702,7 +3553,7 @@ const fmt1 = (v: any) => {
                                 return key ? r[key] : '';
                             };
                             
-                            if (isEv) {
+                            if (isEvMode) {
                                 // EV Support mode: use level_1 and instrument_level1_unit
                                 const level1Val = String(f('level_1') || '').trim() || '-';
                                 const unit1Raw = String(f('instrument_level1_unit') || '').trim();
@@ -3816,29 +3667,38 @@ const fmt1 = (v: any) => {
                         });
                     }
                     box.appendChild(list);
-                    // Allow closing the popup by clicking anywhere on the panel
-                    box.addEventListener('click', () => {
-                        box.remove();
-                        try { (currentPopupKey as any) = null; } catch {}
-                    });
-                    // Keep hover popup alive when mouse enters the popup itself
-                    box.addEventListener('mouseenter', () => {
-                        if (hoverCloseTimer) { clearTimeout(hoverCloseTimer); hoverCloseTimer = null; }
-                    });
-                    box.addEventListener('mouseleave', () => {
-                        if (hoverPopupKey && hoverPopupKey === currentPopupKey) {
-                            if (hoverCloseTimer) clearTimeout(hoverCloseTimer);
-                            hoverCloseTimer = setTimeout(() => {
-                                hoverCloseTimer = null;
-                                if (hoverPopupKey && hoverPopupKey === currentPopupKey) {
-                                    box.remove();
-                                    currentPopupKey = null;
-                                    hoverPopupKey = null;
-                                }
-                            }, 150);
+                    return box;
+                }
+
+                function showPreview(chart: HTMLElement, anchor: SVGRectElement, cell: typeof cells[number]) {
+                    closePreview();
+                    const box = createPolicyDetailBox(cell);
+                    chart.appendChild(box);
+                    preview = { anchor, box };
+
+                    const chartBounds = chart.getBoundingClientRect();
+                    const cellBounds = anchor.getBoundingClientRect();
+                    const boxWidth = box.offsetWidth;
+                    const boxHeight = box.offsetHeight;
+                    const gap = 8;
+                    const maxLeft = chartBounds.width - boxWidth - gap;
+                    const maxTop = chartBounds.height - boxHeight - gap;
+                    const above = cellBounds.top - chartBounds.top - boxHeight - gap;
+                    const below = cellBounds.bottom - chartBounds.top + gap;
+                    let left = cellBounds.left - chartBounds.left + (cellBounds.width - boxWidth) / 2;
+                    let top = above >= gap ? above : below;
+
+                    if (above < gap && below > maxTop) {
+                        const right = cellBounds.right - chartBounds.left + gap;
+                        const leftOfCell = cellBounds.left - chartBounds.left - boxWidth - gap;
+                        if (right <= maxLeft || leftOfCell >= gap) {
+                            left = right <= maxLeft ? right : leftOfCell;
+                            top = cellBounds.top - chartBounds.top + (cellBounds.height - boxHeight) / 2;
                         }
-                    });
-                    parent.appendChild(box);
+                    }
+
+                    box.style.left = `${Math.max(gap, Math.min(left, maxLeft))}px`;
+                    box.style.top = `${Math.max(gap, Math.min(top, maxTop))}px`;
                 }
 
                 const cellColorFn = isEvMode
@@ -3857,117 +3717,28 @@ const fmt1 = (v: any) => {
                     .attr('rx', 3).attr('ry', 3)
                     .attr('fill', d => cellColorFn(d.measure, Number(d.year)))
                     .style('opacity', 0.95)
-                    .style('cursor', 'pointer')
-                    .on('click', function(event, d: any) {
-                        const measure = d.measure as string;
-                        const year = Number(d.year);
-                        const key = `${measure}-${year}`;
-                        const existingPopup = document.querySelector('.policy-detail-popup') as HTMLElement | null;
-                        // If popup is showing via hover for this cell, pin it (don't close)
-                        if (existingPopup && currentPopupKey === key && hoverPopupKey === key) {
-                            hoverPopupKey = null;
-                            return;
-                        }
-                        // If popup is pinned for this cell, toggle it closed
-                        if (existingPopup && currentPopupKey === key && !hoverPopupKey) {
-                            existingPopup.remove();
-                            currentPopupKey = null;
-                            return;
-                        }
-                        // Otherwise open fresh popup (pinned)
-                        hoverPopupKey = null;
-                        let rows: any[];
-                        if (isEvMode) {
-                            rows = evCsv.filter((row: any) => {
-                                const countryCodeRaw = row[evCountryCodeCol];
-                                const m = row[evMeasureCol] || 'Unknown';
-                                const introducedYear = Number(row[evYearCol]); 
-                                const policyChangedDetail = String(row[evPolicyChangedDetailCol] || '').trim().toLowerCase();
-                                if (!countryCodeRaw) return false;
-                                const code = String(countryCodeRaw).trim().toUpperCase();
-                                if (policyChangedDetail !== 'introduced') return false;
-                                if (code !== countryCode3 || m !== measure) return false;
-                                if (!Number.isFinite(introducedYear) || introducedYear > year) return false;
-                                return true;
-                            });
-                        } else {
-                            const allMatchingRows = policyCsv.filter((row: any) => {
-                                const cName = normalizePolicyCountryName(row[countryColumnName]);
-                                const m = row[measureColumnName] || 'Unknown';
-                                const code3 = countryNameMap[cName || ''];
-                                return code3 === countryCode3 && m === measure;
-                            });
-                            rows = allMatchingRows.filter((row: any) => {
-                                const rowYear = Number(row[yearColumnName]);
-                                return Number.isFinite(rowYear) && rowYear === year;
-                            });
-                        }
-                        showPolicyDetailPopup(measure, year, rows, isEvMode);
-                        currentPopupKey = key;
+                    .on('pointerup', function(event: PointerEvent, cell) {
+                        if (event.pointerType !== 'touch') return;
+                        if (preview?.anchor === this) closePreview();
+                        else showPreview(tsContainer, this, cell);
                     })
-                    .on('mouseover', function(event: any, d: any) {
-                        if (hoverCloseTimer) { clearTimeout(hoverCloseTimer); hoverCloseTimer = null; }
+                    .on('pointerenter', function(event: PointerEvent, cell) {
+                        if (event.pointerType === 'touch') return;
                         d3.select(this)
                             .style('opacity', 1)
                             .style('stroke', 'rgba(17, 24, 39, 0.5)')
                             .style('stroke-width', 1.5)
                             .style('filter', 'saturate(1.6) contrast(1.15)');
-                        // Show the full policy detail popup on hover
-                        const measure = d.measure as string;
-                        const year = Number(d.year);
-                        const key = `${measure}-${year}`;
-                        if (currentPopupKey !== key) {
-                            let rows: any[];
-                            if (isEvMode) {
-                                rows = evCsv.filter((row: any) => {
-                                    const countryCodeRaw = row[evCountryCodeCol];
-                                    const m = row[evMeasureCol] || 'Unknown';
-                                    const introducedYear = Number(row[evYearCol]);
-                                    const policyChangedDetail = String(row[evPolicyChangedDetailCol] || '').trim().toLowerCase();
-                                    if (!countryCodeRaw) return false;
-                                    const code = String(countryCodeRaw).trim().toUpperCase();
-                                    if (policyChangedDetail !== 'introduced') return false;
-                                    if (code !== countryCode3 || m !== measure) return false;
-                                    if (!Number.isFinite(introducedYear) || introducedYear > year) return false;
-                                    return true;
-                                });
-                            } else {
-                                const allMatchingRows = policyCsv.filter((row: any) => {
-                                    if (!rowPasses(row, currentPolicyFilter, true)) return false;
-                                    const cName = normalizePolicyCountryName(row[countryColumnName]);
-                                    const m = row[measureColumnName] || 'Unknown';
-                                    const code3 = countryNameMap[cName || ''];
-                                    return code3 === countryCode3 && m === measure;
-                                });
-                                rows = allMatchingRows.filter((row: any) => {
-                                    const rowYear = Number(row[yearColumnName]);
-                                    return Number.isFinite(rowYear) && rowYear === year;
-                                });
-                            }
-                            showPolicyDetailPopup(measure, year, rows, isEvMode);
-                            currentPopupKey = key;
-                            hoverPopupKey = key;
-                        }
+                        showPreview(tsContainer, this, cell);
                     })
-                    .on('mouseout', function() {
+                    .on('pointerleave', function(event: PointerEvent) {
+                        if (event.pointerType === 'touch') return;
                         d3.select(this)
                             .style('opacity', 0.95)
                             .style('stroke', null)
                             .style('stroke-width', 1)
                             .style('filter', 'none');
-                        // Debounced close: avoids flicker when popup overlaps the cell
-                        if (hoverPopupKey && hoverPopupKey === currentPopupKey) {
-                            if (hoverCloseTimer) clearTimeout(hoverCloseTimer);
-                            hoverCloseTimer = setTimeout(() => {
-                                hoverCloseTimer = null;
-                                if (hoverPopupKey && hoverPopupKey === currentPopupKey) {
-                                    const popup = document.querySelector('.policy-detail-popup') as HTMLElement | null;
-                                    if (popup) popup.remove();
-                                    currentPopupKey = null;
-                                    hoverPopupKey = null;
-                                }
-                            }, 150);
-                        }
+                        if (preview?.anchor === this) closePreview();
                     });
 
                 // Axes
@@ -4465,61 +4236,14 @@ const fmt1 = (v: any) => {
                 const values: MapType[] = ['policies', 'ev', 'targets', 'climateTargets', 'regulations'];
                 const selectedValue = values[index];
                 
-                if (selectedValue === 'targets') {
-                    // Set map type to targets and show submenu
-                    currentMapType = 'targets';
-                    setTargetYearGroup('2030', 'renewable');
-                    
-                    // Update toggle switch appearance
-                    toggleSwitch.setAttribute('data-active', selectedValue);
-                    
-                    // Hide climate targets submenu if it's open
-                    hideClimateTargetsSubmenu();
-                    hideRegulationsSubmenu();
-                    
-                    showTargetsSubmenu();
-                    // Update the map to show Electricity data immediately
-                    updateMap();
-                } else if (selectedValue === 'climateTargets') {
-                    // Set map type to climate targets and show submenu
-                    currentMapType = 'climateTargets';
-                    setTargetYearGroup('2030', 'climate');
-                    
-                    // Update toggle switch appearance
-                    toggleSwitch.setAttribute('data-active', selectedValue);
-                    
-                    // Hide RE targets submenu if it's open
-                    hideTargetsSubmenu();
-                    hideRegulationsSubmenu();
-                    
-                    showClimateTargetsSubmenu();
-                    // Update the map to show climate targets data immediately
-                    updateMap();
-                } else if (selectedValue === 'regulations') {
-                    currentMapType = 'regulations';
+                currentMapType = selectedValue;
+                toggleSwitch.setAttribute('data-active', selectedValue);
+                const radioButton = document.querySelector<HTMLInputElement>(`input[name="mapType"][value="${selectedValue}"]`);
+                if (radioButton) radioButton.checked = true;
 
-                    toggleSwitch.setAttribute('data-active', selectedValue);
-                    hideTargetsSubmenu();
-                    hideClimateTargetsSubmenu();
-                    showRegulationsSubmenu();
-                    updateMap();
-                } else {
-                    // Hide both submenus if they're open
-                    hideTargetsSubmenu();
-                    hideClimateTargetsSubmenu();
-                    hideRegulationsSubmenu();
-                    
-                    // Update toggle switch appearance
-                    toggleSwitch.setAttribute('data-active', selectedValue);
-                    
-                    // Update hidden radio buttons for compatibility
-                    const radioButton = document.querySelector(`input[name="mapType"][value="${selectedValue}"]`) as HTMLInputElement;
-                    if (radioButton) {
-                        radioButton.checked = true;
-                        currentMapType = selectedValue;
-                        updateMap();
-                    }
-                }
+                if (selectedValue === 'regulations') showRegulationsSubmenu();
+                else hideRegulationsSubmenu();
+                updateMap();
             });
         });
     }
@@ -4837,34 +4561,19 @@ const fmt1 = (v: any) => {
             onDownloadDataset: downloadFullDatasetFromMap,
             onDownloadDatasetCsv: downloadFullDatasetCsvFromMap,
         });
-        policyFilter = registerPolicyFilterMenu({
+        filterMenus.policies = registerPolicyFilterMenu({
             container: mapContainer,
             rows: policyCsv,
             onChange: (state) => { currentPolicyFilter = state; fillPolicyCounts(state); fillTimeSeries(); recomputePolicyScale(); updateMap(true); },
             onDownload: downloadFilteredPolicyData,
         });
-        policyFilter.setVisible(currentMapType === 'policies');
+        filterMenus.targets = registerTargetFilterMenu(mapContainer, 'targets', () => updateMap(true), availableTargetTypes);
+        filterMenus.climateTargets = registerTargetFilterMenu(mapContainer, 'climateTargets', () => updateMap(true));
+        syncFilterVisibility();
     }
 
     // Hide loading indicator after initial map is loaded
     hideLoadingIndicator();
-
-    // Match the targets/climate submenu widths to the toggle's actual rendered
-    // width so the dropdowns line up. Width clamping for the toggle itself is
-    // done in CSS via `width: clamp(360px, 86vw, 760px)`.
-    function syncSubmenuWidths() {
-        const toggle = document.getElementById('mapTypeToggle') as HTMLElement | null;
-        const submenu = document.getElementById('targetsSubmenu') as HTMLElement | null;
-        const climateSubmenu = document.getElementById('climateTargetsSubmenu') as HTMLElement | null;
-        if (!toggle) return;
-        const toggleWidth = toggle.getBoundingClientRect().width;
-        const submenuWidth = Math.max(400, Math.round(toggleWidth));
-        if (submenu) submenu.style.width = `${submenuWidth}px`;
-        if (climateSubmenu) climateSubmenu.style.width = `${submenuWidth}px`;
-    }
-    requestAnimationFrame(syncSubmenuWidths);
-    window.addEventListener('resize', syncSubmenuWidths);
-
 }).catch(error => {
     console.error('Error loading data:', error);
     // Hide loading indicator even if there's an error
