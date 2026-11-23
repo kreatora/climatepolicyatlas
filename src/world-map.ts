@@ -568,7 +568,7 @@ const countryCodeMapping: { [key: string]: string } = {
     "KGZ": "KG", "KHM": "KH", "KOR": "KR", "KWT": "KW", "LAO": "LA",
     "LBN": "LB", "LBR": "LR", "LBY": "LY", "LKA": "LK", "LSO": "LS",
     "LTU": "LT", "LUX": "LU", "LVA": "LV", "MAR": "MA", "MDA": "MD",
-    "MDG": "MG", "MEX": "MX", "MKD": "MK", "MLI": "ML", "MMR": "MM",
+    "MDG": "MG", "MEX": "MX", "MKD": "MK", "MLI": "ML", "MLT": "MT", "MMR": "MM",
     "MNE": "ME", "MNG": "MN", "MOZ": "MZ", "MRT": "MR", "MWI": "MW",
     "MYS": "MY", "NAM": "NA", "NCL": "NC", "NER": "NE", "NGA": "NG",
     "NIC": "NI", "NLD": "NL", "NOR": "NO", "NPL": "NP", "NZL": "NZ",
@@ -604,7 +604,8 @@ const path = geoPath().projection(projection);
 
 const tooltip = d3.select("body").append("div")
     .attr("class", "tooltip")
-    .style("position", "absolute")
+    .style("position", "fixed")
+    .style("pointer-events", "none")
     .style("z-index", "10")
     .style("visibility", "hidden")
     .style("background", "rgba(255,255,255,0.8)")
@@ -4076,8 +4077,8 @@ const fmt1 = (v: any) => {
             .style('opacity', 1);
     }
 
-    g.selectAll("path")
-        .data(geoData.features)
+    const countryPaths = g.selectAll("path")
+        .data<GeoJSON.Feature>(geoData.features)
         .enter().append("path")
         .attr("d", path as any)
         .attr("fill", (d: any) => getCountryColor(d.id))
@@ -4093,8 +4094,8 @@ const fmt1 = (v: any) => {
         })
         .on("mousemove", function (event) {
             if (currentMapType === 'regulations') return;
-            tooltip.style("top", (event.pageY - 10) + "px")
-                   .style("left", (event.pageX + 10) + "px");
+            tooltip.style("top", (event.clientY - 10) + "px")
+                   .style("left", (event.clientX + 10) + "px");
         })
         .on("mouseout", function () {
             if (currentMapType === 'regulations') return;
@@ -4107,6 +4108,18 @@ const fmt1 = (v: any) => {
             const countryName = d.properties.name;
             createCountryDashboardModal(countryCode3, countryName);
         });
+
+    // Malta's outline is too small to select at the map's zoom levels.
+    const malta = countryPaths.filter(d => d.id === 'MLT');
+    if (!malta.empty()) {
+        const markerCenter: GeoJSON.Point = { type: 'Point', coordinates: path.centroid(malta.datum()) };
+        const markerPath = geoPath();
+        malta.attr('vector-effect', 'non-scaling-stroke');
+        zoom.on('zoom.malta', ({ transform }) => {
+            const radius = Math.min(3, 6 / transform.k);
+            malta.attr('d', markerPath.pointRadius(radius)(markerCenter));
+        });
+    }
 
     document.getElementById('close-panel')?.addEventListener('click', () => {
         document.getElementById('policy-panel')?.classList.remove('visible');
