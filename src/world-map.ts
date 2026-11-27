@@ -10,6 +10,12 @@ import { registerMapHost, getMapHost } from './map-host';
 import { renderBuildCodesOnMap, getBuildCodeAsOfYear } from './build-codes';
 import { downloadFullDataset, downloadFullDatasetCsv } from './dataset-download';
 import { registerMapFilterMenu, registerPolicyFilterMenu, rowPasses, defaultFilterState, type PolicyFilterState } from './policy-filter';
+import { readTargetDetails, targetDetailsHtml, climateTargetColor, climateChartColor, TARGET_NO_DATA_COLOR,
+    CLIMATE_LEGEND_COLORS, CLIMATE_POSITIVE_OVERFLOW_COLOR,
+    CLIMATE_ZERO_COLOR, CLIMATE_NO_TARGET_COLOR, climateNormalizedValueIsDisplayed,
+    selectAccumulatedClimateTarget, climateYearGroup, CLIMATE_YEAR_GROUPS,
+    type ClimateYearGroup,
+    selectProgressionSeries, progressionDetailsHtml, escapeTargetHtml, type ProgressionBasis } from './normalized-targets';
 
 /** Remove legacy in-chart logo watermarks (logo now lives in the modal header bar). */
 function removeSvgLogoWatermarks(root: ParentNode) {
@@ -683,7 +689,7 @@ type TargetMapType = 'targets' | 'climateTargets';
 const TARGET_YEAR_GROUP_ORDER: TargetYearGroup[] = ['2020', '2030', '2050'];
 const DEFAULT_TARGET_YEAR_GROUP: TargetYearGroup = '2030';
 let currentTargetYearGroup: TargetYearGroup = DEFAULT_TARGET_YEAR_GROUP;
-let currentClimateTargetYearGroup: TargetYearGroup = DEFAULT_TARGET_YEAR_GROUP;
+let currentClimateTargetYearGroup: ClimateYearGroup = '2030';
 
  // Helper to map a target year to a year group
  function getYearGroup(year: number): TargetYearGroup | null {
@@ -814,32 +820,41 @@ function registerTargetFilterMenu(
     targetTypes: RenewableTargetType[] = []
 ) {
     const isClimate = mode === 'climateTargets';
-    const menu = registerMapFilterMenu(container, isClimate ? 'Filter climate targets' : 'Filter renewables targets');
+    const menu = registerMapFilterMenu(
+        container,
+        isClimate ? 'Filter climate targets' : 'Filter renewables targets',
+        isClimate ? 'climate' : 'targets'
+    );
     const defaultTargetType = currentTargetType;
     const getYear = () => isClimate ? currentClimateTargetYearGroup : currentTargetYearGroup;
-    const setYear = (year: TargetYearGroup) => {
-        if (isClimate) currentClimateTargetYearGroup = year;
-        else currentTargetYearGroup = year;
-    };
     const commit = () => {
         menu.setActive(getYear() !== DEFAULT_TARGET_YEAR_GROUP || (!isClimate && currentTargetType !== defaultTargetType));
         onChange();
     };
 
-    if (isClimate) {
-        const note = document.createElement('p');
-        note.className = 'cpa-filter-note';
-        note.textContent = 'Targets are percentages as stated by each country.';
-        menu.panel.appendChild(note);
-    }
-    const years = addTargetFilterChoices(
-        menu.panel, `${mode}-year`, 'Target year (latest)',
-        TARGET_YEAR_GROUP_ORDER.map((year) => ({ value: year, label: year })),
-        getYear(), (year) => {
-            setYear(year);
-            commit();
-        }
-    );
+    const climateYearNotes: Record<ClimateYearGroup, string> = {
+        '2020': 'up to 2025',
+        '2030': 'latest by 2034',
+        '2035': 'latest by 2039',
+        '2050': 'latest target',
+    };
+    const years = isClimate
+        ? addTargetFilterChoices(
+            menu.panel, `${mode}-year`, 'Target year (latest)',
+            CLIMATE_YEAR_GROUPS.map((year) => ({ value: year, label: year, note: climateYearNotes[year] })),
+            currentClimateTargetYearGroup, (year) => {
+                currentClimateTargetYearGroup = year;
+                commit();
+            }
+        )
+        : addTargetFilterChoices(
+            menu.panel, `${mode}-year`, 'Target year (latest)',
+            TARGET_YEAR_GROUP_ORDER.map((year) => ({ value: year, label: year })),
+            currentTargetYearGroup, (year) => {
+                currentTargetYearGroup = year;
+                commit();
+            }
+        );
     years.fieldset.classList.add('target-filter-years');
 
     const typeNotes: Record<RenewableTargetType, string> = {
@@ -854,10 +869,16 @@ function registerTargetFilterMenu(
             commit();
         }
     ) : null;
+    if (types) types.fieldset.classList.add('target-filter-types');
 
     menu.resetBtn.addEventListener('click', () => {
-        setYear(DEFAULT_TARGET_YEAR_GROUP);
-        years.select(DEFAULT_TARGET_YEAR_GROUP);
+        if (isClimate) {
+            currentClimateTargetYearGroup = '2030';
+            years.select('2030');
+        } else {
+            currentTargetYearGroup = DEFAULT_TARGET_YEAR_GROUP;
+            years.select(DEFAULT_TARGET_YEAR_GROUP);
+        }
         if (types) {
             currentTargetType = defaultTargetType;
             types.select(defaultTargetType);
@@ -1501,85 +1522,26 @@ Promise.all([
     const targetsDataByType: { [targetType: string]: { [countryCode: string]: any } } = {};
     const allTargetsDataByCountry: { [countryCode: string]: any[] } = {}; // Store ALL targets for each country
     const allTargetTypes = new Set<string>();
+    const tCountryCodeCol = 'Country_code';
+    const ctCountryCodeCol = 'Country_code';
     
-    // Dynamic column detection for Targets
-    const targetsColumns = targetsCsv.columns || [];
-    const tCountryCodeCol = targetsColumns.find((c: string) => c && ['country_code', 'iso_code', 'code'].includes(c.trim().toLowerCase())) || 'Country_code';
-    const tDecisionYearCol = targetsColumns.find((c: string) => c && ['year_decision', 'decision_year'].includes(c.trim().toLowerCase())) || 'Year_decision';
-    const tTargetYearCol = targetsColumns.find((c: string) => c && ['year_target', 'target_year'].includes(c.trim().toLowerCase())) || 'Year_target';
-    const tTargetTypeCol = targetsColumns.find((c: string) => c && ['target_type', 'type'].includes(c.trim().toLowerCase())) || 'Target_type';
-    const tTargetConsistentCol = targetsColumns.find((c: string) => c && ['target_consistent', 'consistent', 'target_value', 'value'].includes(c.trim().toLowerCase())) || 'Target_consistent';
-    const tTargetAverageCol = targetsColumns.find((c: string) => c && ['target_average', 'average'].includes(c.trim().toLowerCase())) || 'Target_average';
-
-    console.log('Targets data - using columns:', { tCountryCodeCol, tDecisionYearCol, tTargetYearCol, tTargetTypeCol, tTargetConsistentCol, tTargetAverageCol });
-    
-    targetsCsv.forEach((row: any, index: number) => {
-        // New RE targets CSV structure (read by column names for stability):
-        const countryCode3Raw = row[tCountryCodeCol] || row[Object.keys(row)[0]];
-        const countryCode3 = String(countryCode3Raw ?? '').trim().toUpperCase();
-        const decisionYearRaw = row[tDecisionYearCol];
-        const targetYearRaw = row[tTargetYearCol]; 
-        const rawTargetType = row[tTargetTypeCol];
-        const targetType = canonicalRenewableTargetType(rawTargetType);
-        const targetConsistent = row[tTargetConsistentCol];
-        const targetAverage = row[tTargetAverageCol];
-        const targetValueRaw = String(targetConsistent ?? '').trim() !== '' ? targetConsistent : targetAverage;
-
-        if (index < 5) {
-            console.log(`Row ${index}:`, {
-                countryCode3: countryCode3Raw,
-                Year_decision: decisionYearRaw,
-                Year_target: targetYearRaw,
-                Target_type: rawTargetType,
-                Target_consistent: targetConsistent,
-                Target_average: targetAverage,
-                Target_value_used: targetValueRaw,
-                allKeys: Object.keys(row)
-            });
-        }
-
-        if (
-            targetType &&
-            ENABLED_RENEWABLE_TARGET_TYPES.has(targetType) &&
-            countryCode3 &&
-            decisionYearRaw != null &&
-            targetYearRaw != null &&
-            targetValueRaw != null &&
-            String(targetValueRaw).trim() !== ''
-        ) {
-            const parsedDecisionYear = parseInt(String(decisionYearRaw));
-            const parsedTargetYear = parseInt(String(targetYearRaw));
-            const parsedTargetValue = parseFloat(String(targetValueRaw));
-
-            if (!isNaN(parsedDecisionYear) && !isNaN(parsedTargetYear) && !isNaN(parsedTargetValue)) {
-                if (!allTargetsDataByCountry[countryCode3]) {
-                    allTargetsDataByCountry[countryCode3] = [];
-                }
-
-                allTargetsDataByCountry[countryCode3].push({
-                    targetType: targetType,
-                    decisionYear: parsedDecisionYear,
-                    targetYear: parsedTargetYear,
-                    targetValue: parsedTargetValue
-                });
-
-                allTargetTypes.add(targetType);
-
-                if (!targetsDataByType[targetType]) {
-                    targetsDataByType[targetType] = {};
-                }
-
-                const existing = targetsDataByType[targetType][countryCode3];
-                if (!existing || Number(existing.decisionYear) < parsedDecisionYear) {
-                    targetsDataByType[targetType][countryCode3] = {
-                        decisionYear: parsedDecisionYear,
-                        targetYear: parsedTargetYear,
-                        targetValue: parsedTargetValue,
-                        countryName: countryCode3toName[countryCode3] || countryCode3,
-                        targetType: targetType
-                    };
-                }
-            }
+    // Retain original-only observations for grey-country details; only normalized values color the map.
+    targetsCsv.forEach((row: Record<string, unknown>) => {
+        const countryCode3 = String(row.Country_code ?? '').trim().toUpperCase();
+        const decisionYear = Number(row.Year_decision);
+        const targetYear = Number(row.Year_target);
+        const targetType = canonicalRenewableTargetType(row.Target_type);
+        if (!countryCode3 || !targetType || !row.Year_decision || !row.Year_target
+            || !Number.isFinite(decisionYear) || !Number.isFinite(targetYear)) return;
+        const target = {
+            ...readTargetDetails(row), decisionYear, targetYear, targetType,
+            countryName: countryCode3toName[countryCode3] || countryCode3,
+        };
+        (allTargetsDataByCountry[countryCode3] ||= []).push(target);
+        allTargetTypes.add(targetType);
+        const typeData = targetsDataByType[targetType] ||= {};
+        if (!typeData[countryCode3] || typeData[countryCode3].decisionYear < decisionYear) {
+            typeData[countryCode3] = target;
         }
     });
 
@@ -1598,70 +1560,21 @@ Promise.all([
     console.log(`${currentTargetType} targets:`, Object.keys(targetsData).length, "countries");
     console.log("Sample targets data:", Object.entries(targetsData).slice(0, 3));
 
-    // Process climate targets data (global, from climate_targets_data.xlsx)
-    console.log("Climate Targets columns:", climateTargetsCsv.columns);
-
-    // Dynamic column detection for Climate Targets
-    const ctColumns = climateTargetsCsv.columns || [];
-    const ctCountryCodeCol = ctColumns.find((c: string) => c && ['country_code', 'iso_code', 'code'].includes(c.trim().toLowerCase())) || 'Country_code';
-    const ctYearDecisionCol = ctColumns.find((c: string) => c && ['year_decision', 'decision_year'].includes(c.trim().toLowerCase())) || 'Year_decision';
-    const ctYearTargetCol = ctColumns.find((c: string) => c && ['year_target', 'target_year'].includes(c.trim().toLowerCase())) || 'Year_target';
-    const ctTargetAverageCol = ctColumns.find((c: string) => c && c.trim().toLowerCase() === 'target_average') || 'Target_average';
-    const ctTargetUnitCol = ctColumns.find((c: string) => c && ['target_unit', 'unit', 'target_unit'].includes(c.trim().toLowerCase())) || 'Target_unit';
-
-    function readClimateTargetAverage(row: Record<string, unknown>): number | null {
-        const raw = row[ctTargetAverageCol];
-        if (raw == null || raw === '') return null;
-        const parsed = parseFloat(String(raw));
-        return Number.isNaN(parsed) ? null : parsed;
-    }
-
-    console.log('Climate Targets - using columns:', { 
-        ctCountryCodeCol, 
-        ctYearDecisionCol, 
-        ctYearTargetCol, 
-        ctTargetAverageCol, 
-        ctTargetUnitCol 
-    });
-    
+    // Use signed normalized values, regardless of the original target's unit or type.
+    // Missing normalization remains null; original values are available in country details.
     const climateTargetsData: { [countryCode: string]: any[] } = {};
-    
-    climateTargetsCsv.forEach((row: any, index: number) => {
-        // New CSV structure: use column R "Target_consistent_all" for the value
-        // (sheet includes many columns; we read by name for stability)
-        const countryCode3Raw = row[ctCountryCodeCol] || row[Object.keys(row)[0]];
-        const countryCode3 = String(countryCode3Raw ?? '').trim().toUpperCase();
-        const yearDecision = row[ctYearDecisionCol];
-        const yearTarget = row[ctYearTargetCol];
-        const parsedTargetAverage = readClimateTargetAverage(row);
-        const targetUnit = row[ctTargetUnitCol];
-        
-        // Include all countries with percent-based Target_average values.
-        if (countryCode3 && yearDecision && yearTarget && parsedTargetAverage != null && targetUnit) {
-            const normalizedUnit = String(targetUnit).trim().toLowerCase();
-            
-            if (normalizedUnit === 'percent') {
-                const parsedYearDecision = parseInt(yearDecision);
-                const parsedYearTarget = parseInt(yearTarget);
-                
-                if (!isNaN(parsedYearDecision) && !isNaN(parsedYearTarget)) {
-                    if (!climateTargetsData[countryCode3]) {
-                        climateTargetsData[countryCode3] = [];
-                    }
-                    
-                    const normalizedReductionValue = Math.abs(parsedTargetAverage);
-                    climateTargetsData[countryCode3].push({
-                        yearDecision: parsedYearDecision,
-                        yearTarget: parsedYearTarget,
-                        targetValue: normalizedReductionValue,
-                        countryName: countryCode3toName[countryCode3] || countryCode3,
-                        targetUnit: targetUnit
-                    });
-                }
-            }
-        }
+    climateTargetsCsv.forEach((row: Record<string, unknown>) => {
+        const countryCode3 = String(row.Country_code ?? '').trim().toUpperCase();
+        const yearDecision = Number(row.Year_decision);
+        const yearTarget = Number(row.Year_target);
+        if (!countryCode3 || !row.Year_decision || !row.Year_target
+            || !Number.isFinite(yearDecision) || !Number.isFinite(yearTarget)) return;
+        (climateTargetsData[countryCode3] ||= []).push({
+            ...readTargetDetails(row), yearDecision, yearTarget, targetUnit: 'Percent',
+            countryName: countryCode3toName[countryCode3] || countryCode3,
+        });
     });
-    
+
     // For each country, select the latest target based on year decision
     const latestClimateTargetsData: { [countryCode: string]: any } = {};
     Object.entries(climateTargetsData).forEach(([countryCode, targets]) => {
@@ -1740,18 +1653,11 @@ Promise.all([
     const targetMinMax: { [key: string]: { min: number, max: number } } = {};
     
     allTargetTypes.forEach(targetType => {
-        const typeData = targetsDataByType[targetType] || {};
-        const targetValues = Object.values(typeData).map((d: any) => d.targetValue);
-        if (targetValues.length > 0) {
-            const rawMinValue = d3.min(targetValues) as number;
-            const minValue = rawMinValue < RENEWABLE_TARGET_COLOR_MAX ? rawMinValue : 0;
-            targetMinMax[targetType] = { min: minValue, max: RENEWABLE_TARGET_COLOR_MAX };
-            targetColorScales[targetType] = d3.scaleSequential(d3.interpolateBlues)
-                .domain([minValue, RENEWABLE_TARGET_COLOR_MAX])
-                .clamp(true);
-        }
+        targetMinMax[targetType] = { min: 0, max: RENEWABLE_TARGET_COLOR_MAX };
+        targetColorScales[targetType] = d3.scaleSequential(d3.interpolateBlues)
+            .domain([0, RENEWABLE_TARGET_COLOR_MAX]).clamp(true);
     });
-    
+
     // Global min/max across enabled target types for consistent legend gradient
     const allEnabledTargetValues: number[] = [];
     allTargetTypes.forEach(targetType => {
@@ -1779,12 +1685,10 @@ Promise.all([
     const evColorScale = d3.scaleSequential(d3.interpolateRgb('#fff5eb', '#f97316'))
         .domain([minEv, maxEv]);
 
-    // Create color scale for climate targets (stored as positive reduction percentages).
-    const climateTargetValues = Object.values(latestClimateTargetsData).map((d: any) => d.targetValue);
-    const minClimateTarget = climateTargetValues.length > 0 ? d3.min(climateTargetValues) : 0;
-    const maxClimateTarget = climateTargetValues.length > 0 ? d3.max(climateTargetValues) : 100;
-    const climateTargetsColorScale = d3.scaleSequential(d3.interpolatePurples)
-        .domain([minClimateTarget as number, maxClimateTarget as number]);
+    // The signed range stays fixed; outliers have their own colors and retain their actual values.
+    const minClimateTarget = -100;
+    const maxClimateTarget = 100;
+    const climateTargetsColorScale = climateTargetColor;
 
     // Store color scales in allData
     allData.policies.colorScale = policyColorScale;
@@ -1811,7 +1715,7 @@ Promise.all([
                     decisionField: 'decisionYear',
                 });
                 if (selectedTarget) {
-                    return currentColorScale(selectedTarget.targetValue);
+                    return selectedTarget.targetValue == null ? TARGET_NO_DATA_COLOR : currentColorScale(selectedTarget.targetValue);
                 }
                 return '#d4d4d4';
             }
@@ -1822,7 +1726,7 @@ Promise.all([
             
             if (countryCode && allClimateTargets[countryCode] && currentColorScale) {
                 const targets = allClimateTargets[countryCode];
-                const selectedTarget = selectTargetForYearGroup(targets, currentClimateTargetYearGroup, {
+                const selectedTarget = selectAccumulatedClimateTarget(targets, currentClimateTargetYearGroup, {
                     yearField: 'yearTarget',
                     decisionField: 'yearDecision',
                 });
@@ -1831,7 +1735,7 @@ Promise.all([
                     return currentColorScale(selectedTarget.targetValue);
                 }
 
-                return '#d4d4d4';
+                return CLIMATE_NO_TARGET_COLOR;
             } else {
                 return '#b0b0b0';
             }
@@ -1867,8 +1771,8 @@ Promise.all([
                 decisionField: 'decisionYear',
             });
             if (targetInfo) {
-                const decisionLabel = (targetInfo as any).decisionYear ?? (targetInfo as any).decisionDate ?? '—';
-                return `<strong>${countryName}</strong><br/>Target Type: ${displayName}<br/>Target: ${targetInfo.targetValue}% by ${targetInfo.targetYear}<br/>Decision: ${decisionLabel}`;
+                const decisionLabel = (targetInfo as any).decisionYear ?? (targetInfo as any).decisionDate ?? 'Not available';
+                return `<strong>${countryName}</strong><br/>${targetDetailsHtml(targetInfo as any)}<br/>Target year: ${targetInfo.targetYear}<br/>Decision: ${decisionLabel}`;
             } else if (countryTargets.length > 0) {
                 return `<strong>${countryName}</strong><br/>No ${displayName} target data for ${currentTargetYearGroup}`;
             } else {
@@ -1878,16 +1782,24 @@ Promise.all([
             const allClimateTargets = allData.climateTargets.allData || {};
             if (allClimateTargets[countryCode]) {
                 const targets = allClimateTargets[countryCode];
-                const selectedTarget = selectTargetForYearGroup(targets, currentClimateTargetYearGroup, {
+                const selectedTarget = selectAccumulatedClimateTarget(targets, currentClimateTargetYearGroup, {
                     yearField: 'yearTarget',
                     decisionField: 'yearDecision',
                 });
 
                 if (selectedTarget) {
-                    return `<strong>${countryName}</strong><br/>Climate target: ${fmt1(selectedTarget.targetValue)}% by ${selectedTarget.yearTarget}<br/>Decision Year: ${selectedTarget.yearDecision}`;
+                    const value = Number(selectedTarget.targetValue);
+                    const figure = Number.isFinite(value)
+                        ? `${value > 0 ? '+' : ''}${fmt1(value)}% from 1990`
+                        : 'No normalized value';
+                    const targetYear = Number(selectedTarget.yearTarget);
+                    const carried = climateYearGroup(targetYear) !== currentClimateTargetYearGroup && Number.isFinite(targetYear)
+                        ? ` (${targetYear} target)`
+                        : '';
+                    return `<strong>${countryName}</strong><br/>${figure}${carried}`;
                 }
 
-                return `<strong>${countryName}</strong><br/>No climate target data for ${currentClimateTargetYearGroup}`;
+                return `<strong>${countryName}</strong><br/>No target by ${currentClimateTargetYearGroup}`;
             } else {
                 return `<strong>${countryName}</strong><br/>No climate target data`;
             }
@@ -1908,6 +1820,24 @@ Promise.all([
         const legendEl = document.getElementById('map-choropleth-legend');
         if (!legendEl) return;
 
+        legendEl.classList.toggle('is-climate-targets', mapType === 'climateTargets');
+        if (mapType === 'climateTargets') {
+            legendEl.innerHTML = `
+                <p class="map-choropleth-legend-title">Normalized climate target<br/><span>Change from 1990 emissions</span></p>
+                <div class="climate-legend-direction"><span>Reductions</span><span>Increases</span></div>
+                <div class="climate-legend-bins" aria-hidden="true">${CLIMATE_LEGEND_COLORS.map(color => `<span style="background:${color}"></span>`).join('')}</div>
+                <div class="climate-legend-ticks"><span>−100%</span><span>0%</span><span>+100%</span></div>
+                <div class="climate-legend-zero"><i style="background:${CLIMATE_ZERO_COLOR}"></i><span>0%, no change from 1990</span></div>
+                <div class="climate-legend-overflow">
+                    <span><i style="background:${CLIMATE_POSITIVE_OVERFLOW_COLOR}"></i>+100% and above</span>
+                </div>
+                <div class="climate-legend-missing"><i style="background:${TARGET_NO_DATA_COLOR}"></i><span>No normalized value</span></div>
+                <div class="climate-legend-missing"><i style="background:${CLIMATE_NO_TARGET_COLOR}"></i><span>No target by this year</span></div>`;
+            legendEl.classList.add('is-visible');
+            legendEl.removeAttribute('aria-hidden');
+            return;
+        }
+
         let interpolateFunction: (t: number) => string;
         let minValue: number;
         let maxValue: number;
@@ -1923,11 +1853,6 @@ Promise.all([
                 minValue = minTargets as number;
                 maxValue = maxTargets as number;
                 break;
-            case 'climateTargets':
-                interpolateFunction = d3.interpolatePurples;
-                minValue = minClimateTarget as number;
-                maxValue = maxClimateTarget as number;
-                break;
             case 'ev':
                 interpolateFunction = (t: number) => d3.interpolateRgb('#fff5eb', '#f97316')(t);
                 minValue = minEv as number;
@@ -1940,10 +1865,9 @@ Promise.all([
         }
 
         const legendTitles: Record<string, string> = {
-            policies: 'Renewable Electricity Support — Policy Count',
-            ev: 'Electric Vehicle Support — Policy Count',
-            targets: `${getTargetTypeDisplayName(currentTargetType)} (Percent)`,
-            climateTargets: 'Climate Target (Percent)',
+            policies: 'Renewable Electricity Support: Policy Count',
+            ev: 'Electric Vehicle Support: Policy Count',
+            targets: `${getTargetTypeDisplayName(currentTargetType)}: Normalized (%)`,
         };
 
         const gradientStops = d3.range(0, 1.01, 0.12)
@@ -2000,11 +1924,18 @@ Promise.all([
                 .scale(europeScale));
     }
 
-    const filterMenus: Partial<Record<MapType, { setVisible(visible: boolean): void }>> = {};
+    const filterMenus: Partial<Record<MapType, { setVisible(visible: boolean): void; open?(): void }>> = {};
+    let autoOpenedFilter: MapType | null = null;
     function syncFilterVisibility() {
         for (const [mode, menu] of Object.entries(filterMenus)) {
             menu.setVisible(mode === currentMapType);
         }
+        const opensOnArrival = currentMapType === 'targets' || currentMapType === 'climateTargets';
+        if (opensOnArrival && autoOpenedFilter !== currentMapType) {
+            autoOpenedFilter = currentMapType;
+            filterMenus[currentMapType]?.open?.();
+        }
+        if (!opensOnArrival) autoOpenedFilter = null;
     }
 
     // Function to update map visualization
@@ -2039,13 +1970,15 @@ Promise.all([
     let hasShownDashboardHints = false;
 
     // Render a country dashboard in the modal with targets progression and policy timeline charts
-    function createCountryDashboardModal(countryCode3: string, countryName: string) {
+    let dashboardResizeListener: (() => void) | undefined;
+    function createCountryDashboardModal(countryCode3: string, countryName: string, basis: ProgressionBasis = 'normalized') {
         const modalContent = document.getElementById('modal-content');
         const modalTitle = document.getElementById('modal-title');
         if (!modalContent) return;
+        if (dashboardResizeListener) window.removeEventListener('resize', dashboardResizeListener);
 
         if (modalTitle) {
-            modalTitle.textContent = `${countryName} — Dashboard`;
+            modalTitle.textContent = `${countryName}: Dashboard`;
         }
 
         // Helper to format labels: Title Case, with specific abbreviations fully uppercased
@@ -2150,9 +2083,25 @@ const fmt1 = (v: any) => {
 			return;
 		}
 
-        // Layout container
+        const isProgressionMode = currentMapType === 'targets' || currentMapType === 'climateTargets';
+        const climateProgression = currentMapType === 'climateTargets';
+        const observations: any[] = (climateProgression
+            ? (allData.climateTargets.allData?.[countryCode3] || [])
+            : (allData.targets.allTargetsByCountry?.[countryCode3] || []))
+            .map((target: any) => ({ ...target,
+                targetYear: Number(target.targetYear ?? target.yearTarget),
+                decisionYear: Number(target.decisionYear ?? target.yearDecision),
+            }));
+        const progression = selectProgressionSeries(observations, basis,
+            climateProgression ? undefined : currentTargetType);
+        if (climateProgression && basis === 'normalized') {
+            progression.targets = progression.targets.filter((target) => climateNormalizedValueIsDisplayed(target.targetValue));
+        }
+        const basisLabel = basis === 'normalized' ? 'Normalized' : 'Original';
+        const valueSuffix = progression.displayUnit === '%' ? '%' : ` ${progression.displayUnit}`;
+        if (isProgressionMode) modalContent.style.overflow = 'auto';
         modalContent.innerHTML = `
-            <div id="dashboard-top" style="display:flex; gap:16px; width:100%; flex:1; min-height:0; flex-direction:row; position:relative;">
+            <div id="dashboard-top" data-value-basis="${basis}" data-value-unit="${escapeTargetHtml(progression.displayUnit)}" style="display:flex; gap:16px; width:100%; flex:1; min-height:${isProgressionMode ? '340px' : '0'}; flex-direction:row; position:relative;">
                 <div id="dashboard-pie" style="flex:1; min-height:200px; background:#f8fafc; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.06);"></div>
                 <div id="dashboard-timeseries" style="flex:1; min-height:200px; background:#f8fafc; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.06);"></div>
             </div>
@@ -2173,6 +2122,7 @@ const fmt1 = (v: any) => {
                 updateLayout();
                 // Continuously adapt layout on resize while modal is open
                 window.addEventListener('resize', updateLayout);
+                dashboardResizeListener = updateLayout;
 
                 // Show a single centered interaction note only on the first country click
                 if (!hasShownDashboardHints) {
@@ -2205,7 +2155,9 @@ const fmt1 = (v: any) => {
             }
 
             const leftContainer = document.getElementById('dashboard-pie');
-            const countryTargets = allData.targets.allTargetsByCountry?.[countryCode3] || [];
+            const countryTargets = isProgressionMode && !climateProgression ? progression.targets
+                : (allData.targets.allTargetsByCountry?.[countryCode3] || [])
+                    .filter((target: any) => typeof target.targetValue === 'number' && Number.isFinite(target.targetValue));
             
             // Track map modes for conditional chart rendering
             const isEvMode = currentMapType === 'ev';
@@ -2250,28 +2202,29 @@ const fmt1 = (v: any) => {
                 }
             }
             
+            if (isProgressionMode && leftContainer) {
+                const legend = d3.select(leftContainer).append('div')
+                    .attr('class', 'target-value-legend').attr('aria-label', 'Chart value legend');
+                (['normalized', 'original'] as const).forEach(valueBasis => {
+                    const active = basis === valueBasis;
+                    const item = legend.append('button').attr('type', 'button')
+                        .attr('aria-pressed', String(active))
+                        .attr('class', active ? 'is-active' : '')
+                        .on('click', () => createCountryDashboardModal(countryCode3, countryName, valueBasis));
+                    item.append('span').attr('class', 'target-value-legend-line').attr('aria-hidden', 'true');
+                    item.append('span').text(valueBasis === 'normalized' ? 'Normalized' : 'Original');
+                });
+            }
+
             // Climate Targets mode: Show Climate Targets Progression instead of RE Targets
             if (isClimateTargetsMode && leftContainer) {
                 // allData.climateTargets.allData[countryCode] is an ARRAY of targets
-                const countryClimateTargetsRaw = allData.climateTargets.allData?.[countryCode3] || [];
-                const climateTargetsList: any[] = [];
-                
-                // The data is already an array of target objects
-                if (Array.isArray(countryClimateTargetsRaw)) {
-                    countryClimateTargetsRaw.forEach((t: any) => {
-                        climateTargetsList.push({
-                            decisionYear: Number(t.yearDecision),
-                            targetYear: Number(t.yearTarget),
-                            targetValue: Number(t.targetValue),
-                            targetUnit: t.targetUnit || '%'
-                        });
-                    });
-                }
+                const climateTargetsList: any[] = progression.targets;
                 
                 if (climateTargetsList.length > 0) {
                     const targetsContainer = leftContainer as HTMLElement;
                     const rect = targetsContainer.getBoundingClientRect();
-                    const citationHeight = 60; // Reserve space for citation
+                    const citationHeight = 100; // Reserve space for citation
                     const margin = { top: 40, right: 60, bottom: 55, left: 60 };
                     const width = rect.width - margin.left - margin.right;
                     const height = rect.height - margin.top - margin.bottom - citationHeight;
@@ -2298,7 +2251,9 @@ const fmt1 = (v: any) => {
                         .style('font-family', 'Inter, -apple-system, BlinkMacSystemFont, sans-serif')
                         .style('pointer-events', 'none')
                         .style('z-index', '10000')
-                        .style('white-space', 'nowrap')
+                        .style('white-space', 'normal')
+                        .style('max-width', '340px')
+                        .style('line-height', '1.45')
                         .style('box-shadow', '0 2px 4px rgba(0, 0, 0, 0.2)');
 
                     // Chart title
@@ -2310,7 +2265,7 @@ const fmt1 = (v: any) => {
                         .style('font-weight', '700')
                         .style('font-family', 'Inter, -apple-system, BlinkMacSystemFont, sans-serif')
                         .style('fill', '#1e293b')
-                        .text('Climate Targets Progression');
+                        .text(`${basisLabel} Climate Targets`);
 
                     // "How to read this chart" info icon
                     {
@@ -2349,14 +2304,12 @@ const fmt1 = (v: any) => {
                             .html(
                             `<strong>How to read this chart</strong><br>` +
                             `Each <strong>line</strong> connects a decision year to a target year.<br>` +
-                            `The <strong>vertical axis</strong> shows the climate target (%) as stated by the country.<br>` +
+                            (basis === 'normalized' ? `The <strong>vertical axis</strong> shows the normalized value: percent change in economy-wide GHG emissions from 1990.<br>` : `The <strong>vertical axis</strong> shows the original value, in ${escapeTargetHtml(progression.displayUnit)}. That unit and its reference are those of the adopted target.<br>`) +
                             `An <strong>open circle</strong> marks the year a target was set; a <strong>filled circle</strong> marks its target year.<br>` +
-                            `<span style="color:#94a3b8">Hover over any circle or line for details.</span>` +
+                            `<span style="color:#94a3b8">Hover a circle or line for the normalized value, the original value, and the target type.</span>` +
                             `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.2);color:#fcd34d;">` +
-                            `<strong>Note:</strong> This chart is a first-glance overview. ` +
-                            `Targets use different reference points (e.g. 1990, 2005 or business-as-usual), ` +
-                            `may be conditional or cover only some sectors, so values are not directly comparable ` +
-                            `between targets or countries. See the dataset on Zenodo for details.` +
+                            `<strong>Note:</strong> Only one series is plotted. The normalized value is the percent change from 1990 emissions. A normalized value below −100% or above +200% is omitted from this chart so the axis stays readable. The original value keeps the adopted unit and reference. ` +
+                            `See the dataset metadata for the normalization formulas.` +
                             `</div>`
                             );
                         infoG.on('mouseenter', () => htrtcTip.style('visibility', 'visible'))
@@ -2415,7 +2368,7 @@ const fmt1 = (v: any) => {
                         .ticks(Math.min(8, maxYear - minYear));
                     
                     const yAxis = d3.axisLeft(yScale)
-                        .tickFormat(d => `${d}%`)
+                        .tickFormat(d => `${d3.format('~s')(Number(d))}${valueSuffix}`)
                         .ticks(5);
                     
                     g.append('g')
@@ -2451,7 +2404,7 @@ const fmt1 = (v: any) => {
                         .style('font-weight', '600')
                         .style('font-family', 'Inter, -apple-system, BlinkMacSystemFont, sans-serif')
                         .style('fill', '#475569')
-                        .text('Climate Target (%)');
+                        .text(`${basisLabel} ${basis === 'normalized' ? 'change' : 'target'} (${progression.displayUnit})`);
 
                     // Add Citation
                     d3.select(targetsContainer).append('div')
@@ -2465,18 +2418,17 @@ const fmt1 = (v: any) => {
                         .style('background', '#f8fafc') // Match container background
                         .html(`<strong>Suggested Citation:</strong> ${getDatasetMetadata('climateTargets').suggestedCitation}`);
                     
-                    // Color for climate targets (purple to match map)
-                    const climateColor = '#7c3aed'; // Purple for climate targets
                     
                     // Sort targets by decision year
                     climateTargetsList.sort((a, b) => a.decisionYear - b.decisionYear);
                     
                     // Helper to format values
-                    const fmtVal = (v: number) => v.toFixed(1);
+                    const fmtVal = (v: number) => Math.abs(v) >= 1000 ? d3.format('.3~s')(v) : v.toFixed(1);
                     const climateLabelSpecs: TargetProgressionLabelOptions[] = [];
                     
                     // Draw each target with same logic as renewable targets
                     climateTargetsList.forEach((target: any, index: number) => {
+                        const climateColor = basis === 'normalized' ? climateChartColor(target.targetValue) : '#475569';
                         // Find the next target that actually supersedes this one (SAME target year only)
                         // Different target years coexist as milestones
                         let nextTarget = null;
@@ -2510,11 +2462,11 @@ const fmt1 = (v: any) => {
                             .on('mouseenter', function(event: any) {
                                 const [mouseX, mouseY] = d3.pointer(event, targetsContainer);
                                 const tooltipText = isSuperseded
-                                    ? `${fmtVal(target.targetValue)}% climate target from ${target.decisionYear} to ${endYear} (superseded, original target year: ${target.targetYear})`
-                                    : `${fmtVal(target.targetValue)}% climate target from ${target.decisionYear} to ${target.targetYear}${isExpired ? ' (expired)' : ''}`;
+                                    ? `${fmtVal(target.targetValue)}${valueSuffix} climate target from ${target.decisionYear} to ${endYear} (superseded, original target year: ${target.targetYear})`
+                                    : `${fmtVal(target.targetValue)}${valueSuffix} climate target from ${target.decisionYear} to ${target.targetYear}${isExpired ? ' (expired)' : ''}`;
                                 tooltip
                                     .style('visibility', 'visible')
-                                    .html(tooltipText)
+                                    .html(tooltipText + `<br/>${targetDetailsHtml(target, true)}`)
                                     .style('top', (mouseY + 10) + 'px')
                                     .style('left', (mouseX + 10) + 'px');
                             })
@@ -2538,7 +2490,7 @@ const fmt1 = (v: any) => {
                                     const [mouseX, mouseY] = d3.pointer(event, targetsContainer);
                                     tooltip
                                         .style('visibility', 'visible')
-                                        .html(`Target for ${target.targetYear} updated in ${nextTarget.decisionYear}<br/>From ${fmtVal(target.targetValue)}% to ${fmtVal(nextTarget.targetValue)}%`)
+                                        .html(`Target for ${target.targetYear} updated in ${nextTarget.decisionYear}<br/>From ${fmtVal(target.targetValue)}${valueSuffix} to ${fmtVal(nextTarget.targetValue)}${valueSuffix}`)
                                         .style('top', (mouseY + 10) + 'px')
                                         .style('left', (mouseX + 10) + 'px');
                                 })
@@ -2558,7 +2510,7 @@ const fmt1 = (v: any) => {
                                 const [mouseX, mouseY] = d3.pointer(event, targetsContainer);
                                 tooltip
                                     .style('visibility', 'visible')
-                                    .html(`Decision: ${target.decisionYear}<br/>Climate target: ${fmtVal(target.targetValue)}% by ${target.targetYear}`)
+                                    .html(`Decision: ${target.decisionYear}<br/>${targetDetailsHtml(target, true)}<br/>Target year: ${target.targetYear}`)
                                     .style('top', (mouseY + 10) + 'px')
                                     .style('left', (mouseX + 10) + 'px');
                             })
@@ -2576,7 +2528,7 @@ const fmt1 = (v: any) => {
                                 xStart: xScale(target.decisionYear),
                                 xEnd: xScale(endYear),
                                 placement: 'segment',
-                                text: `${fmtVal(target.targetValue)}%`,
+                                text: `${fmtVal(target.targetValue)}${valueSuffix}`,
                                 color: climateColor,
                                 className: 'target-label',
                                 targetType: 'climate',
@@ -2597,7 +2549,7 @@ const fmt1 = (v: any) => {
                                     const [mouseX, mouseY] = d3.pointer(event, targetsContainer);
                                     tooltip
                                         .style('visibility', 'visible')
-                                        .html(`Target year: ${target.targetYear}<br/>Climate target: ${fmtVal(target.targetValue)}%`)
+                                        .html(`Target year: ${target.targetYear}<br/>${targetDetailsHtml(target, true)}`)
                                         .style('top', (mouseY + 10) + 'px')
                                         .style('left', (mouseX + 10) + 'px');
                                 })
@@ -2614,7 +2566,7 @@ const fmt1 = (v: any) => {
                                 xStart: xScale(target.decisionYear),
                                 xEnd: xScale(target.targetYear),
                                 placement: 'end',
-                                text: `${fmtVal(target.targetValue)}%`,
+                                text: `${fmtVal(target.targetValue)}${valueSuffix}`,
                                 color: climateColor,
                                 className: 'target-label',
                                 targetType: 'climate',
@@ -2630,21 +2582,21 @@ const fmt1 = (v: any) => {
                     appendTargetLineStyleLegend(svg, {
                         x: margin.left + width - 168,
                         bottom: margin.top + height - 12,
-                        lineColor: '#7c3aed',
+                        lineColor: '#238b6b',
                     });
                 } else {
-                    leftContainer.innerHTML = `
+                    leftContainer.insertAdjacentHTML('beforeend', `
                         <div style="display:flex;align-items:center;justify-content:center;height:100%;">
                             <div style="text-align:center;color:#64748b;padding:20px;">
-                                <div style="font-size:14px;font-weight:600;margin-bottom:4px;">No Climate Targets Data</div>
-                                <div style="font-size:12px;">No climate targets found for ${countryName}</div>
+                                <div style="font-size:14px;font-weight:600;margin-bottom:4px;">No ${basisLabel.toLowerCase()} climate values available</div>
+                                <div style="font-size:12px;">Switch the value legend above to see the other series.</div>
                             </div>
-                        </div>`;
+                        </div>`);
                 }
             } else if (!isEvMode && leftContainer && countryTargets.length > 0) {
                 const targetsContainer = leftContainer as HTMLElement;
                 const rect = targetsContainer.getBoundingClientRect();
-                const citationHeight = 60; // Reserve space for citation
+                const citationHeight = 100; // Reserve space for citation
                 const margin = { top: 40, right: 60, bottom: 55, left: 60 };
                 const width = rect.width - margin.left - margin.right;
                 const height = rect.height - margin.top - margin.bottom - citationHeight;
@@ -2683,7 +2635,7 @@ const fmt1 = (v: any) => {
                     .style('font-weight', '700')
                     .style('font-family', 'Inter, -apple-system, BlinkMacSystemFont, sans-serif')
                     .style('fill', '#1e293b')
-                    .text('Renewable Energy Targets Progression');
+                    .text(`${basisLabel} Renewable Targets`);
 
                 // "How to read this chart" info icon
                 {
@@ -2722,14 +2674,13 @@ const fmt1 = (v: any) => {
                         .html(
                             `<strong>How to read this chart</strong><br>` +
                             `Each <strong>line</strong> connects a decision year to a target year.<br>` +
-                            `The <strong>vertical axis</strong> shows the target percentage (e.g. share of renewables).<br>` +
+                            `The <strong>vertical axis</strong> shows ${basisLabel.toLowerCase()} renewable values in ${escapeTargetHtml(progression.displayUnit)}.<br>` +
                             `An <strong>open circle</strong> marks the year a target was set; a <strong>filled circle</strong> marks its target year.<br>` +
                             `<span style="color:#94a3b8">Hover over any circle or line for details.</span>` +
                             `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.2);color:#fcd34d;">` +
                             `<strong>Note:</strong> This chart is a first-glance overview. ` +
-                            `Targets differ in scope: some include all renewables, others exclude (large) hydro ` +
-                            `or cover only specific technologies, so values are not directly comparable ` +
-                            `between targets or countries. See the dataset on Zenodo for details.` +
+                            (basis === 'normalized' ? `Normalized values cover all renewable technologies for cross-country and temporal comparisons. ` : `Original values retain their stated technology coverage. `) +
+                            `Only the selected value basis is plotted. Original values retain their original scope and reference points. See the dataset metadata for normalization formulas.` +
                             `</div>`
                         );
                     infoG.on('mouseenter', () => htrtcTip.style('visibility', 'visible'))
@@ -2748,7 +2699,7 @@ const fmt1 = (v: any) => {
                     .range([0, width]);
                 
                 const yScale = d3.scaleLinear()
-                    .domain([0, 100])
+                    .domain([Math.min(0, ...countryTargets.map((target: any) => target.targetValue)), Math.max(basis === 'normalized' ? 100 : 1, ...countryTargets.map((target: any) => target.targetValue))])
                     .range([height, 0]);
                 
                 // Grid lines
@@ -2773,7 +2724,7 @@ const fmt1 = (v: any) => {
                     .ticks(Math.min(8, maxYear - minYear));
                 
                 const yAxis = d3.axisLeft(yScale)
-                    .tickFormat(d => `${d}%`)
+                    .tickFormat(d => `${d}${valueSuffix}`)
                     .ticks(5);
                 
                 g.append('g')
@@ -2809,7 +2760,7 @@ const fmt1 = (v: any) => {
                     .style('font-weight', '600')
                     .style('font-family', 'Inter, -apple-system, BlinkMacSystemFont, sans-serif')
                     .style('fill', '#475569')
-                    .text('Target (%)');
+                    .text(`${basisLabel} target (${progression.displayUnit})`);
                 
                 // Determine which target types should be visible initially.
                 const allTargetTypes = Array.from(new Set(countryTargets.map((t: any) => t.targetType)));
@@ -2877,7 +2828,7 @@ const fmt1 = (v: any) => {
                     const isHistorical = isSuperseded || isExpired;
                     
                     // Draw horizontal line from decision year to end year at the target value level
-                    const lineTooltipText = `${fmt1(target.targetValue)}% target from ${target.decisionYear} to ${endYear}${isSuperseded ? ` (superseded, original target year: ${target.targetYear})` : ''}${isExpired ? ' (expired)' : ''}`;
+                    const lineTooltipText = `${fmt1(target.targetValue)}${valueSuffix} target from ${target.decisionYear} to ${endYear}${isSuperseded ? ` (superseded, original target year: ${target.targetYear})` : ''}${isExpired ? ' (expired)' : ''}`;
                     g.append('line')
                         .attr('class', `target-line target-type-${target.targetType.replace(/[^a-zA-Z0-9]/g, '-')}`)
                         .attr('data-target-type', target.targetType)
@@ -2895,7 +2846,7 @@ const fmt1 = (v: any) => {
                             const [mouseX, mouseY] = d3.pointer(event, targetsContainer);
                             tooltip
                                 .style('visibility', 'visible')
-                                .html(lineTooltipText.replace(/\n/g, '<br/>'))
+                                .html(lineTooltipText.replace(/\n/g, '<br/>') + `<br/>${progressionDetailsHtml(target, basis)}`)
                                 .style('top', (mouseY + 10) + 'px')
                                 .style('left', (mouseX + 10) + 'px');
                         })
@@ -2911,7 +2862,7 @@ const fmt1 = (v: any) => {
                     
                     // If this target was superseded by a same-year target, draw a vertical dashed line connecting them
                     if (nextTarget && isSuperseded) {
-                        const connectionTooltip = `Target for ${target.targetYear} updated in ${nextTarget.decisionYear}<br/>From ${fmt1(target.targetValue)}% to ${fmt1(nextTarget.targetValue)}%`;
+                        const connectionTooltip = `Target for ${target.targetYear} updated in ${nextTarget.decisionYear}<br/>From ${fmt1(target.targetValue)}${valueSuffix} to ${fmt1(nextTarget.targetValue)}${valueSuffix}`;
                         g.append('line')
                             .attr('class', `target-line-connection target-type-${target.targetType.replace(/[^a-zA-Z0-9]/g, '-')}`)
                             .attr('data-target-type', target.targetType)
@@ -2959,7 +2910,7 @@ const fmt1 = (v: any) => {
                             const [mouseX, mouseY] = d3.pointer(event, targetsContainer);
                             tooltip
                                 .style('visibility', 'visible')
-                                        .html(`Decision: ${target.decisionYear}<br/>Target: ${fmt1(target.targetValue)}% by ${target.targetYear}`)
+                                        .html(`Decision: ${target.decisionYear}<br/>${progressionDetailsHtml(target, basis)}<br/>Target year: ${target.targetYear}`)
                                 .style('top', (mouseY + 10) + 'px')
                                 .style('left', (mouseX + 10) + 'px');
                         })
@@ -2983,7 +2934,7 @@ const fmt1 = (v: any) => {
                             xStart: xScale(target.decisionYear),
                             xEnd: xScale(endYear),
                             placement: 'segment',
-                            text: `${fmt1(target.targetValue)}%`,
+                            text: `${fmt1(target.targetValue)}${valueSuffix}`,
                             color,
                             className: `target-label target-type-${target.targetType.replace(/[^a-zA-Z0-9]/g, '-')}`,
                             targetType: target.targetType,
@@ -2999,7 +2950,7 @@ const fmt1 = (v: any) => {
                         (!nextTarget || nextTarget.targetYear < target.targetYear);
                     
                     if (shouldDrawDashedLine) {
-                        const originalTargetTooltip = `Original target: ${fmt1(target.targetValue)}% by ${target.targetYear}<br/>(Superseded in ${endYear})`;
+                        const originalTargetTooltip = `Earlier ${basisLabel.toLowerCase()} target: ${fmt1(target.targetValue)}${valueSuffix} by ${target.targetYear}<br/>(Superseded in ${endYear})<br/>${progressionDetailsHtml(target, basis)}`;
                         g.append('line')
                             .attr('class', `target-line-dashed target-type-${target.targetType.replace(/[^a-zA-Z0-9]/g, '-')}`)
                             .attr('data-target-type', target.targetType)
@@ -3067,7 +3018,7 @@ const fmt1 = (v: any) => {
                     // Draw end point ONLY if target reaches its actual deadline (not superseded)
                     // This prevents misleading dots at supersede years that look like decisions
                     if (endYear === target.targetYear) {
-                        const endTooltipText = `Target year: ${target.targetYear}<br/>Target: ${fmt1(target.targetValue)}%`;
+                        const endTooltipText = `Target year: ${target.targetYear}<br/>Target: ${fmt1(target.targetValue)}${valueSuffix}`;
                         g.append('circle')
                             .attr('class', `target-circle target-type-${target.targetType.replace(/[^a-zA-Z0-9]/g, '-')}`)
                             .attr('data-target-type', target.targetType)
@@ -3082,7 +3033,7 @@ const fmt1 = (v: any) => {
                                 const [mouseX, mouseY] = d3.pointer(event, targetsContainer);
                                 tooltip
                                     .style('visibility', 'visible')
-                                    .html(endTooltipText)
+                                    .html(endTooltipText + `<br/>${progressionDetailsHtml(target, basis)}`)
                                     .style('top', (mouseY + 10) + 'px')
                                     .style('left', (mouseX + 10) + 'px');
                             })
@@ -3105,7 +3056,7 @@ const fmt1 = (v: any) => {
                             xStart: xScale(target.decisionYear),
                             xEnd: xScale(endYear),
                             placement: 'end',
-                            text: `${fmt1(target.targetValue)}%`,
+                            text: `${fmt1(target.targetValue)}${valueSuffix}`,
                             color,
                             className: `target-label target-type-${target.targetType.replace(/[^a-zA-Z0-9]/g, '-')}`,
                             targetType: target.targetType,
@@ -3119,188 +3070,6 @@ const fmt1 = (v: any) => {
                 targetLabelSpecs.forEach((spec) => appendTargetProgressionLabel(targetLabelsG, spec));
                 
                 // Legend with interactive filtering
-                const legend = svg.append('g')
-                    .attr('transform', `translate(${margin.left + 10}, ${margin.top + 10})`);
-                
-                const uniqueTargetTypes = allTargetTypes;
-                
-                // Track which target types are visible.
-                const visibleTargetTypes = initiallyVisibleTypes;
-                
-                uniqueTargetTypes.forEach((targetType: any, i: number) => {
-                    const isInitiallyVisible = visibleTargetTypes.has(targetType);
-                    
-                    const legendRow = legend.append('g')
-                        .attr('transform', `translate(0, ${i * 22})`)
-                        .style('cursor', 'pointer')
-                        .attr('class', 'legend-item')
-                        .attr('data-target-type', targetType);
-                    
-                    // Add background rect for better click area and hover effect
-                    const bgRect = legendRow.append('rect')
-                        .attr('x', -5)
-                        .attr('y', -10)
-                        .attr('width', 180)
-                        .attr('height', 20)
-                        .attr('rx', 4)
-                        .style('fill', 'transparent')
-                        .style('transition', 'all 0.2s ease');
-                    
-                    const legendLine = legendRow.append('line')
-                        .attr('x1', 0)
-                        .attr('x2', 20)
-                        .attr('y1', 0)
-                        .attr('y2', 0)
-                        .style('stroke', targetTypeColors(targetType) as string)
-                        .style('stroke-width', 3)
-                        .style('opacity', isInitiallyVisible ? '1' : '0.3')
-                        .style('transition', 'opacity 0.3s ease');
-                    
-                    const legendText = legendRow.append('text')
-                        .attr('x', 25)
-                        .attr('y', 0)
-                        .attr('dy', '0.35em')
-                        .style('font-size', '11px')
-                        .style('font-weight', isInitiallyVisible ? '500' : '400')
-                        .style('font-family', 'Inter, -apple-system, BlinkMacSystemFont, sans-serif')
-                        .style('fill', '#334155')
-                        .style('opacity', isInitiallyVisible ? '1' : '0.4')
-                        .style('text-decoration', isInitiallyVisible ? 'none' : 'line-through')
-                        .style('transition', 'all 0.3s ease')
-                        .text(() => {
-                            const full = getTargetTypeDisplayName(String(targetType));
-                            const base = full
-                                .replace(/^Renewable\s+/i, '')
-                                .replace(/\s*Target$/i, '');
-                            // Shorten long labels
-                            return base
-                                .replace(/\bHeating And Cooling\b/i, 'Heating & Cooling')
-                                .replace(/\bTransportation\b/i, 'Transport');
-                        });
-                    
-                    // Hover effects
-                    legendRow
-                        .on('mouseenter', function() {
-                            if (visibleTargetTypes.has(targetType)) {
-                                bgRect.style('fill', '#f1f5f9');
-                                legendText.style('font-weight', '600');
-                            }
-                        })
-                        .on('mouseleave', function() {
-                            bgRect.style('fill', 'transparent');
-                            if (visibleTargetTypes.has(targetType)) {
-                                legendText.style('font-weight', '500');
-                            }
-                        })
-                        .on('click', function() {
-                            // Toggle visibility
-                            if (visibleTargetTypes.has(targetType)) {
-                                visibleTargetTypes.delete(targetType);
-                                legendLine.style('opacity', '0.3');
-                                legendText
-                                    .style('opacity', '0.4')
-                                    .style('text-decoration', 'line-through')
-                                    .style('font-weight', '400');
-                            } else {
-                                visibleTargetTypes.add(targetType);
-                                legendLine.style('opacity', '1');
-                                legendText
-                                    .style('opacity', '1')
-                                    .style('text-decoration', 'none')
-                                    .style('font-weight', '500');
-                            }
-                            
-                            // Update chart visibility
-                            updateChartVisibility();
-                        });
-                });
-                
-                // Function to update chart elements visibility based on selected target types
-                function updateChartVisibility() {
-                    // Update all horizontal target lines
-                    g.selectAll('.target-line').each(function() {
-                        const line = d3.select(this);
-                        const targetType = line.attr('data-target-type');
-                        const isVisible = visibleTargetTypes.has(targetType);
-                        const isDashed = line.style('stroke-dasharray') !== 'none';
-                        
-                        line.transition()
-                            .duration(300)
-                            .style('opacity', isVisible ? (isDashed ? '0.6' : '0.8') : '0')
-                            .style('pointer-events', isVisible ? 'auto' : 'none');
-                    });
-                    
-                    // Update dashed lines showing original target years for superseded targets
-                    g.selectAll('.target-line-dashed').each(function() {
-                        const line = d3.select(this);
-                        const targetType = line.attr('data-target-type');
-                        const isVisible = visibleTargetTypes.has(targetType);
-                        
-                        line.transition()
-                            .duration(300)
-                            .style('opacity', isVisible ? '0.4' : '0')
-                            .style('pointer-events', isVisible ? 'auto' : 'none');
-                    });
-                    
-                    // Update connection lines (vertical dashed lines for same-year supersessions)
-                    g.selectAll('.target-line-connection').each(function() {
-                        const line = d3.select(this);
-                        const targetType = line.attr('data-target-type');
-                        const isVisible = visibleTargetTypes.has(targetType);
-                        
-                        line.transition()
-                            .duration(300)
-                            .style('opacity', isVisible ? '0.6' : '0')
-                            .style('pointer-events', isVisible ? 'auto' : 'none');
-                    });
-                    
-                    // Update circles - keep radius constant to preserve tooltips
-                    g.selectAll('.target-circle').each(function() {
-                        const circle = d3.select(this);
-                        const targetType = circle.attr('data-target-type');
-                        const isVisible = visibleTargetTypes.has(targetType);
-                        
-                        circle.transition()
-                            .duration(300)
-                            .style('opacity', isVisible ? '1' : '0')
-                            .style('pointer-events', isVisible ? 'auto' : 'none');
-                    });
-                    
-                    // Update original target markers (small dashed circles at original target years)
-                    g.selectAll('.target-circle-original').each(function() {
-                        const circle = d3.select(this);
-                        const targetType = circle.attr('data-target-type');
-                        const isVisible = visibleTargetTypes.has(targetType);
-                        
-                        circle.transition()
-                            .duration(300)
-                            .style('opacity', isVisible ? '0.5' : '0')
-                            .style('pointer-events', isVisible ? 'auto' : 'none');
-                    });
-                    
-                    // Update labels
-                    g.selectAll('.target-label').each(function() {
-                        const text = d3.select(this);
-                        const targetType = text.attr('data-target-type');
-                        const isVisible = visibleTargetTypes.has(targetType);
-                        
-                        text.transition()
-                            .duration(300)
-                            .style('opacity', isVisible ? '1' : '0')
-                            .style('pointer-events', isVisible ? 'auto' : 'none');
-                    });
-                }
-                
-                // Add instruction text
-                legend.append('text')
-                    .attr('x', 0)
-                    .attr('y', uniqueTargetTypes.length * 22 + 10)
-                    .style('font-size', '9px')
-                    .style('font-style', 'italic')
-                    .style('font-family', 'Inter, -apple-system, BlinkMacSystemFont, sans-serif')
-                    .style('fill', '#94a3b8')
-                    .text('Click to show/hide target types');
-
                 appendTargetLineStyleLegend(svg, {
                     x: margin.left + width - 168,
                     bottom: margin.top + height - 12,
@@ -3321,13 +3090,13 @@ const fmt1 = (v: any) => {
                 // Removed per-chart overlay in favor of single dashboard overlay
             } else if (leftContainer && !isEvMode && !isClimateTargetsMode) {
                 // Only show "no RE targets" message for RE Support and Renewables Targets modes
-                leftContainer.innerHTML = `
+                leftContainer.insertAdjacentHTML('beforeend', `
                     <div style="display:flex;align-items:center;justify-content:center;height:100%;">
                         <div style="text-align:center;color:#64748b;padding:20px;">
-                            <div style="font-size:14px;font-weight:600;margin-bottom:4px;">No Targets Data</div>
-                            <div style="font-size:12px;">No renewable energy targets found for ${countryName}</div>
+                            <div style="font-size:14px;font-weight:600;margin-bottom:4px;">No ${basisLabel.toLowerCase()} renewable values available</div>
+                            <div style="font-size:12px;">Switch the value legend above to see the other series.</div>
                         </div>
-                    </div>`;
+                    </div>`);
             }
 
             // Time series chart: row-per-policy type (non-stacked)
@@ -3530,7 +3299,7 @@ const fmt1 = (v: any) => {
                     }
                     const formattedMeasure = formatPolicyTypeDisplay(measure);
                     title.style.cssText = 'margin-bottom:8px;font-weight:600;color:#111827;font-size:14px;line-height:1.3;overflow-wrap:anywhere';
-                    title.textContent = `${countryName} — ${formattedMeasure} (${year})`;
+                    title.textContent = `${countryName}: ${formattedMeasure} (${year})`;
                     box.appendChild(title);
                     const list = document.createElement('div');
                     list.style.display = 'flex';
@@ -4083,6 +3852,14 @@ const fmt1 = (v: any) => {
         .attr("d", path as any)
         .attr("fill", (d: any) => getCountryColor(d.id))
         .attr("class", "country")
+        .attr("role", "button")
+        .attr("tabindex", 0)
+        .attr("aria-label", (d: any) => d.properties.name)
+        .on("keydown", function (event: KeyboardEvent, d: any) {
+            if (currentMapType === 'regulations' || (event.key !== 'Enter' && event.key !== ' ')) return;
+            event.preventDefault();
+            createCountryDashboardModal(d.id, d.properties.name);
+        })
         .on("mouseover", function (event, d: any) {
             if (currentMapType === 'regulations') return;
             d3.select(this).style("stroke", "black").style("stroke-width", 1.5);
@@ -4245,7 +4022,8 @@ const fmt1 = (v: any) => {
     
     if (toggleSwitch && toggleOptions.length > 0) {
         toggleOptions.forEach((option, index) => {
-            option.addEventListener('click', () => {
+            option.addEventListener('click', (event) => {
+                event.stopPropagation();
                 const values: MapType[] = ['policies', 'ev', 'targets', 'climateTargets', 'regulations'];
                 const selectedValue = values[index];
                 
@@ -4281,7 +4059,7 @@ const fmt1 = (v: any) => {
 
         if (currentMapType === 'regulations') {
             return {
-                title: 'Build Codes — Surveyed Regions',
+                title: 'Build Codes: Surveyed Regions',
                 subtitle: `Regulations · NUTS regions with coded build regulations as of ${getBuildCodeAsOfYear()}`,
                 legend: 'Green = surveyed region with rules · grey = no rules for current filters (click for details)',
             };
@@ -4302,7 +4080,7 @@ const fmt1 = (v: any) => {
                 };
             case 'targets':
                 return {
-                    title: `Renewable Energy Targets — ${currentTargetType}`,
+                    title: `Renewable Energy Targets: ${currentTargetType}`,
                     subtitle: `World map · ${yearLabel}`,
                     legend: 'Color scale: renewable target (%) by country',
                 };
@@ -4310,7 +4088,7 @@ const fmt1 = (v: any) => {
                 return {
                     title: 'Climate Targets',
                     subtitle: `World map · ${climateYearLabel}`,
-                    legend: 'Color scale: climate target (%, as stated by each country)',
+                    legend: 'Normalized percent change from 1990 economy-wide GHG emissions, for the latest target by the selected year. An earlier target is used when that year has none. Unconditional is used when one exists. Green: reduction, including below −100%. Cream: no change (0%). Orange/red: increase, including above +100%. Light grey: no normalized value. Darker grey: no target by the selected year.',
                 };
             default:
                 return { title: 'Climate Policy Atlas Map', subtitle: 'World map' };
@@ -4318,8 +4096,10 @@ const fmt1 = (v: any) => {
     }
 
     function getDashboardExportCaption(countryName: string) {
-        const yearLabel = formatYearGroupLabel(currentTargetYearGroup);
-        const climateYearLabel = formatYearGroupLabel(currentClimateTargetYearGroup);
+        const chart = document.getElementById('dashboard-top');
+        const basis = chart?.dataset.valueBasis === 'original' ? 'Original' : 'Normalized';
+        const selectedUnit = chart?.dataset.valueUnit || '%';
+        const selectionSubtitle = currentMapType === 'targets' ? currentTargetType : 'Climate target progression';
         const leftPanel = document.getElementById('dashboard-pie');
         const rightPanel = document.getElementById('dashboard-timeseries');
         const leftHasChart = !!(
@@ -4338,46 +4118,48 @@ const fmt1 = (v: any) => {
         switch (currentMapType) {
             case 'ev':
                 return {
-                    title: `${countryName} — EV Support Policy Timeline`,
+                    title: `${countryName}: EV Support Policy Timeline`,
                     subtitle: 'Country dashboard',
                     legend: 'Bars show when each EV support policy type was introduced by year',
                 };
             case 'targets':
                 return {
-                    title: `${countryName} — Renewable Energy Targets`,
-                    subtitle: `${currentTargetType} · ${yearLabel}`,
-                    legend: 'Lines show target (%) progression by decision year and target year',
+                    title: `${countryName}: ${basis} Renewable Energy Targets`,
+                    subtitle: selectionSubtitle,
+                    legend: `Lines show ${basis.toLowerCase()} values (${selectedUnit}) by decision year and target year`,
                 };
             case 'climateTargets':
                 return {
-                    title: `${countryName} — Climate Targets Progression`,
-                    subtitle: climateYearLabel,
-                    legend: 'Climate targets (%, as stated by the country)',
+                    title: `${countryName}: ${basis} Climate Targets`,
+                    subtitle: selectionSubtitle,
+                    legend: basis === 'Normalized'
+                        ? 'Plotted series: normalized percent change from 1990 economy-wide GHG emissions. Each point also states the original value and the target type.'
+                        : `Plotted series: the original target (${selectedUnit}), in the unit and reference of the adopted target. Each point also states the normalized value and the target type.`,
                 };
             default:
                 if (leftHasChart && rightHasChart) {
                     return {
-                        title: `${countryName} — Country Dashboard`,
+                        title: `${countryName}: Country Dashboard`,
                         subtitle: 'Renewable electricity support policies and renewable energy targets',
                         legend: 'Left: renewable energy targets progression · Right: renewable electricity support policy introduction timeline by year',
                     };
                 }
                 if (rightHasChart) {
                     return {
-                        title: `${countryName} — Renewable Electricity Support Policy Timeline`,
+                        title: `${countryName}: Renewable Electricity Support Policy Timeline`,
                         subtitle: 'Country dashboard',
                         legend: 'Bars show when each renewable electricity support policy type was introduced by year',
                     };
                 }
                 if (leftHasChart) {
                     return {
-                        title: `${countryName} — Renewable Energy Targets Progression`,
+                        title: `${countryName}: Renewable Energy Targets Progression`,
                         subtitle: 'Country dashboard',
                         legend: 'Lines show target (%) progression by decision year and target year',
                     };
                 }
                 return {
-                    title: `${countryName} — Country Dashboard`,
+                    title: `${countryName}: Country Dashboard`,
                     subtitle: 'Country dashboard · renewable electricity support policies',
                     legend: 'Dashboard charts for the selected country',
                 };

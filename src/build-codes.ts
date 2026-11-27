@@ -439,7 +439,7 @@ function tooltipHide() {
 }
 
 function formatTitleCase(value: string | null | undefined): string {
-    if (!value) return '—';
+    if (!value) return 'n/a';
     return value
         .trim()
         .toLowerCase()
@@ -465,12 +465,12 @@ function formatBindingStatus(binding: string | null | undefined): string {
 
 function formatRuleValue(r: Rule): string {
     const v = r.values[0];
-    if (!v) return '—';
+    if (!v) return 'n/a';
     const parts: string[] = [];
     if (r.min_or_max) parts.push(formatTitleCase(r.min_or_max));
     if (v.value != null) parts.push(String(v.value));
     if (v.unit) parts.push(v.unit);
-    return parts.join(' ') || '—';
+    return parts.join(' ') || 'n/a';
 }
 
 function rulesTableHTML(rules: Rule[]): string {
@@ -490,10 +490,10 @@ function rulesTableHTML(rules: Rule[]): string {
         const sourceRaw = r.source_name?.split('\n')[0]?.trim() || '';
         const source = sourceRaw
             ? escapeHtml(sourceRaw.length > 52 ? `${sourceRaw.slice(0, 49)}…` : sourceRaw)
-            : '—';
+            : 'n/a';
 
         return `<tr class="bc-rule-row ${r.kind}" data-rule="${ruleKey(r)}" tabindex="0" role="button" aria-label="Open regulation details">
-            <td class="bc-rule-table-serial">${escapeHtml(r.serial_number || '—')}</td>
+            <td class="bc-rule-table-serial">${escapeHtml(r.serial_number || 'n/a')}</td>
             <td class="bc-rule-table-rule">
                 <span class="bc-rule-table-name">${escapeHtml(formatVariableLabel(r.variable))}</span>
                 ${cond}
@@ -501,7 +501,7 @@ function rulesTableHTML(rules: Rule[]): string {
             <td><span class="bc-rule-pill bc-rule-pill-tech ${r.kind}">${escapeHtml(formatTechnology(r.kind))}</span></td>
             <td><span class="bc-rule-pill ${isPromoting ? 'is-promoting' : 'is-constraining'}">${formatPolicyEffect(r.policy_effect)}</span></td>
             <td class="bc-rule-table-value">${escapeHtml(formatRuleValue(r))}</td>
-            <td class="bc-rule-table-year">${r.year_decision ?? '—'}</td>
+            <td class="bc-rule-table-year">${r.year_decision ?? 'n/a'}</td>
             <td><span class="bc-rule-pill ${isBind ? 'is-binding' : 'is-guideline'}">${formatBindingStatus(r.legally_binding)}</span></td>
             <td class="bc-rule-table-source">${source}</td>
         </tr>`;
@@ -583,7 +583,7 @@ function showSourceModal(r: Rule) {
         const parts = [
             v.value != null ? `<strong>${v.value}</strong>` : '',
             v.unit || '',
-            v.condition ? `<span style="color:rgb(100,116,139);">— ${escapeHtml(v.condition)}</span>` : '',
+            v.condition ? `<span style="color:rgb(100,116,139);">: ${escapeHtml(v.condition)}</span>` : '',
         ].filter(Boolean).join(' ');
         return `<div style="font-size:12.5px;line-height:1.5;margin-bottom:6px;"><span style="color:rgb(100,116,139);font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">Cond. ${i + 1}</span> ${parts}</div>`;
     }).join('');
@@ -598,7 +598,7 @@ function showSourceModal(r: Rule) {
         <div class="bc-modal-bd" id="bc-modal-bd">
             <div class="bc-modal" onclick="event.stopPropagation()">
                 <div class="bc-modal-h">
-                    <h3>${escapeHtml(formatVariableLabel(r.variable))} — ${escapeHtml(r.nuts_name || r.nuts)}</h3>
+                    <h3>${escapeHtml(formatVariableLabel(r.variable))}: ${escapeHtml(r.nuts_name || r.nuts)}</h3>
                     <button class="bc-modal-x" id="bc-modal-x">&times;</button>
                 </div>
                 <div class="bc-modal-body">
@@ -632,7 +632,7 @@ function showSourceModal(r: Rule) {
                         </div>
                     </div>
                     <div style="margin-top:18px;font-size:12px;color:rgb(71,85,105);line-height:1.6;">
-                        <div><strong>Source:</strong> ${escapeHtml(sourceLine || '—')}</div>
+                        <div><strong>Source:</strong> ${escapeHtml(sourceLine || 'n/a')}</div>
                         ${r.source_alternative ? `<div><strong>Alt source:</strong> ${escapeHtml(r.source_alternative)}</div>` : ''}
                         <div style="margin-top:8px;">${link}</div>
                     </div>
@@ -811,7 +811,7 @@ function attachRulesTableSearch(container: HTMLElement, total: number) {
 }
 
 function regionModalTitle(name: string, code: string, count: number): string {
-    return `${name} — ${code} · ${count} Applicable Rules as of ${currentAsOfYear}`;
+    return `${name}: ${code} · ${count} Applicable Rules as of ${currentAsOfYear}`;
 }
 
 function refreshOpenRegionModal() {
@@ -877,7 +877,7 @@ function showRegionDetail(name: string, code: string, rules: Rule[], asOfYear?: 
 async function renderDrilldown(host: HTMLElement) {
     host.innerHTML = `
         <h3 class="bc-h2">NUTS drill-down zoom</h3>
-        <p class="bc-sub">Country-level entry. Click <strong>DE</strong>, <strong>EL</strong> or <strong>IE</strong> to zoom into the next NUTS level. Other countries are shown in grey — survey expanding.</p>
+        <p class="bc-sub">Country-level entry. Click <strong>DE</strong>, <strong>EL</strong> or <strong>IE</strong> to zoom into the next NUTS level. Other countries are shown in grey. Survey expanding.</p>
         <div id="bc-dd-bar" style="display:flex;gap:6px;align-items:center;margin-bottom:10px;font-size:12.5px;">
             <button class="bc-pill" id="bc-dd-back" disabled style="opacity:0.5;">← Back to Europe</button>
             <span id="bc-dd-crumb" style="margin-left:8px;color:rgb(71,85,105);"></span>
@@ -894,14 +894,14 @@ async function renderDrilldown(host: HTMLElement) {
         const lvl0 = await loadNuts(0);
 
         let features: any[];
-        let title = 'Europe — NUTS-0';
+        let title = 'Europe: NUTS-0';
         if (level === 0) {
             features = lvl0.features;
         } else {
             const lvl = await loadNuts(level);
             features = lvl.features.filter((f: any) => (f.properties.CNTR_CODE || '').toUpperCase() === focusedCountry);
             const focusName = COUNTRIES.find(c => c.code === focusedCountry)?.name || '';
-            title = `${focusName} — NUTS-${level}`;
+            title = `${focusName}: NUTS-${level}`;
         }
 
         // Counts per feature
@@ -1023,7 +1023,7 @@ async function renderDrilldown(host: HTMLElement) {
 function renderDecisionLines(host: HTMLElement) {
     host.innerHTML = `
         <h3 class="bc-h2">Setback decision lines</h3>
-        <p class="bc-sub">Pick a setback variable. Each region's rule is drawn as a horizontal line at its value, starting from the year of decision. Same idiom as the renewable-targets chart on the world map — superseded rules drop into dashed connectors.</p>
+        <p class="bc-sub">Pick a setback variable. Each region's rule is drawn as a horizontal line at its value, starting from the year of decision. Same idiom as the renewable-targets chart on the world map. Superseded rules drop into dashed connectors.</p>
         <div class="bc-controls" id="bc-dec-ctl">
             <label>Variable</label>
             <select class="bc-select" id="bc-dec-var">
@@ -1169,9 +1169,9 @@ function renderCellGrid(host: HTMLElement) {
             <label>Region</label>
             <select class="bc-select" id="bc-cg-region">
                 <optgroup label="Countries">
-                    <option value="DE">DE — Germany</option>
-                    <option value="EL">EL — Greece</option>
-                    <option value="IE">IE — Ireland</option>
+                    <option value="DE">DE: Germany</option>
+                    <option value="EL">EL: Greece</option>
+                    <option value="IE">IE: Ireland</option>
                 </optgroup>
                 <optgroup label="All NUTS-1/3">
                     ${regions.filter(r => r.length > 2).map(r => `<option value="${r}">${r}</option>`).join('')}
@@ -1280,13 +1280,13 @@ function renderBufferOverlay(host: HTMLElement) {
         <div class="bc-controls">
             <label>Region</label>
             <select class="bc-select" id="bc-buf-region">
-                <option value="DE2">DE2 — Bayern (10H rule)</option>
-                <option value="DE9">DE9 — Niedersachsen</option>
-                <option value="DEA">DEA — Nordrhein-Westfalen</option>
-                <option value="DE1">DE1 — Baden-Württemberg</option>
-                <option value="DE">DE — federal baseline</option>
-                <option value="EL">EL — Greek baseline</option>
-                <option value="IE">IE — Irish guidelines</option>
+                <option value="DE2">DE2: Bayern (10H rule)</option>
+                <option value="DE9">DE9: Niedersachsen</option>
+                <option value="DEA">DEA: Nordrhein-Westfalen</option>
+                <option value="DE1">DE1: Baden-Württemberg</option>
+                <option value="DE">DE: federal baseline</option>
+                <option value="EL">EL: Greek baseline</option>
+                <option value="IE">IE: Irish guidelines</option>
             </select>
             <span style="flex:1"></span>
             <label>Show feature</label>
@@ -1397,11 +1397,11 @@ function renderBufferOverlay(host: HTMLElement) {
         const reg = COUNTRIES.find(c => c.code === region.slice(0, 2));
         sideBox.innerHTML = `
             <div class="bc-card">
-                <div class="bc-card-h">${escapeHtml(region)} — applied setbacks</div>
+                <div class="bc-card-h">${escapeHtml(region)}: applied setbacks</div>
                 <ul style="margin:0;padding-left:18px;">${items || '<em style="color:#94a3b8;">No metric setbacks for this region.</em>'}</ul>
                 <div style="margin-top:12px;font-size:11px;color:#64748b;line-height:1.5;font-style:italic;">
                     The red ring is the no-build zone around each feature; the green negative space is the buildable land.
-                    Bayern's 10H rule (≈2000 m) shrinks the green dramatically — try toggling between DE2 and DE9.
+                    Bayern's 10H rule (≈2000 m) shrinks the green dramatically. Try toggling between DE2 and DE9.
                 </div>
             </div>`;
     };
@@ -1491,7 +1491,7 @@ function renderSimulator(host: HTMLElement) {
 
         for (const r of rs) {
             if ((r.policy_effect || '').toLowerCase() === 'promoting') {
-                verdicts.push({ rule: r, verdict: 'info', reason: 'Promoting policy — does not impose a blocking setback.' });
+                verdicts.push({ rule: r, verdict: 'info', reason: 'Promoting policy. Does not impose a blocking setback.' });
                 continue;
             }
             const v = r.values[0];
@@ -1501,7 +1501,7 @@ function renderSimulator(host: HTMLElement) {
             const isMax = (r.min_or_max || '').toLowerCase().startsWith('max');
 
             if (val == null) {
-                verdicts.push({ rule: r, verdict: 'info', reason: 'Textual rule — manual review required.' });
+                verdicts.push({ rule: r, verdict: 'info', reason: 'Textual rule. Manual review required.' });
                 continue;
             }
             if (/m$|metre|meter/.test(unit)) {
@@ -1520,7 +1520,7 @@ function renderSimulator(host: HTMLElement) {
                     else verdicts.push({ rule: r, verdict: 'fail', reason: `Site is ${got} m, exceeds ≤ ${val} m.` });
                     continue;
                 }
-                verdicts.push({ rule: r, verdict: 'conditional', reason: `${val} ${unit} threshold — operator semantics unspecified.` });
+                verdicts.push({ rule: r, verdict: 'conditional', reason: `${val} ${unit} threshold. Operator semantics unspecified.` });
                 continue;
             }
             if (r.variable === '10_turbine height' && /m/.test(unit)) {
@@ -1544,11 +1544,11 @@ function renderSimulator(host: HTMLElement) {
                 }
             }
             if (r.variable === '15_exclusion area') {
-                verdicts.push({ rule: r, verdict: 'conditional', reason: 'Exclusion area — depends on whether your site falls inside the listed zone.' });
+                verdicts.push({ rule: r, verdict: 'conditional', reason: 'Exclusion area. Depends on whether your site falls inside the listed zone.' });
                 continue;
             }
             if (r.variable === '16_priority area') {
-                verdicts.push({ rule: r, verdict: 'info', reason: 'Priority area designation — favourable, no action.' });
+                verdicts.push({ rule: r, verdict: 'info', reason: 'Priority area designation. Favourable, no action.' });
                 continue;
             }
             verdicts.push({ rule: r, verdict: 'info', reason: 'Rule logged for manual review.' });
@@ -1560,7 +1560,7 @@ function renderSimulator(host: HTMLElement) {
         const infoN = verdicts.filter(v => v.verdict === 'info').length;
         const overall = failN > 0 ? 'fail' : (condN > 0 ? 'conditional' : 'pass');
         const verdictColor = { pass: '#0d9488', fail: '#dc2626', conditional: '#d97706', info: '#64748b' };
-        const verdictLabel = { pass: 'Likely permitted', fail: 'Blocked by binding rules', conditional: 'Conditional — review needed', info: '' };
+        const verdictLabel = { pass: 'Likely permitted', fail: 'Blocked by binding rules', conditional: 'Conditional: review needed', info: '' };
 
         const rendered = `
             <div class="bc-card" style="margin-bottom:14px;">
@@ -1828,7 +1828,7 @@ function renderDecisionTrees(host: HTMLElement) {
 
     host.innerHTML = `
         <h3 class="bc-h2">Decision-tree rules</h3>
-        <p class="bc-sub">Rules with structured conditions. Each tree shows the branches of a single legal rule. Around 5% of the dataset carries this kind of branching logic — flat tables flatten it; here we render the structure.</p>
+        <p class="bc-sub">Rules with structured conditions. Each tree shows the branches of a single legal rule. Around 5% of the dataset carries this kind of branching logic. Flat tables flatten it; here we render the structure.</p>
         <div class="bc-controls">
             <label>Filter</label>
             <button class="bc-pill bc-pill-active" data-tfilter="all">All (${treeRules.length})</button>
@@ -1851,7 +1851,7 @@ function renderDecisionTrees(host: HTMLElement) {
             for (const r of t.rules) {
                 for (const v of r.values) {
                     branches.push({
-                        label: v.condition || '—',
+                        label: v.condition || 'n/a',
                         value: v.value != null ? `${r.min_or_max ? r.min_or_max + ' ' : ''}${v.value} ${v.unit || ''}` : '(text)',
                         cond: v.condition || '',
                         tag: (r.legally_binding || '').toLowerCase().startsWith('y') ? 'binding' : 'guideline',

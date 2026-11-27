@@ -204,7 +204,27 @@ const ensureStyles = () => {
             border: 1px solid var(--color-border, rgb(176, 192, 176)); border-radius: 16px;
             box-shadow: 0 18px 40px rgba(42, 58, 42, 0.18);
         }
-        .cpa-filter-menu.is-open .cpa-download-sidebar { opacity: 1; visibility: visible; transform: translateX(0); pointer-events: auto; }
+        .cpa-filter-tone-targets .cpa-filter-panel,
+        .cpa-filter-tone-climate .cpa-filter-panel {
+            width: min(480px, calc(100vw - 96px));
+            padding: 4px 6px 6px;
+            border-radius: 12px;
+        }
+        .cpa-filter-tone-targets .cpa-download-sidebar-header,
+        .cpa-filter-tone-climate .cpa-download-sidebar-header {
+            top: 0; padding: 1px 4px 3px; margin-bottom: 0;
+        }
+        .cpa-filter-tone-targets .cpa-download-sidebar-header > span,
+        .cpa-filter-tone-climate .cpa-download-sidebar-header > span {
+            font-size: 12px;
+        }
+        .cpa-filter-tone-targets .cpa-filter-reset,
+        .cpa-filter-tone-climate .cpa-filter-reset {
+            padding: 1px 8px; font-size: 10.5px;
+        }
+        .cpa-filter-menu.is-open .cpa-download-sidebar { opacity: 0.32; visibility: visible; transform: translateX(0); pointer-events: auto; }
+        .cpa-filter-menu.is-open:hover .cpa-download-sidebar,
+        .cpa-filter-menu.is-open:focus-within .cpa-download-sidebar { opacity: 1; }
         .cpa-filter-panel .cpa-download-sidebar-header {
             position: sticky; top: -10px; z-index: 2; background: #fff;
             display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -318,12 +338,12 @@ const ensureStyles = () => {
     document.head.appendChild(style);
 };
 
-export function registerMapFilterMenu(container: HTMLElement, title: string) {
+export function registerMapFilterMenu(container: HTMLElement, title: string, tone: 'policies' | 'targets' | 'climate' = 'policies') {
     ensureStyles();
     if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
 
     const root = document.createElement('div');
-    root.className = 'cpa-filter-menu';
+    root.className = `cpa-filter-menu cpa-filter-tone-${tone}`;
 
     const trigger = document.createElement('button');
     trigger.type = 'button';
@@ -358,7 +378,11 @@ export function registerMapFilterMenu(container: HTMLElement, title: string) {
         setOpen(!root.classList.contains('is-open'));
     });
     document.addEventListener('click', (event) => {
-        if (!root.contains(event.target as Node)) setOpen(false);
+        const target = event.target;
+        // Switching map mode is what opens this panel. That click is outside the
+        // menu, so it must not immediately dismiss the panel it just opened.
+        if (target instanceof Element && target.closest('#mapTypeToggle')) return;
+        if (!root.contains(target as Node)) setOpen(false);
     });
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && root.classList.contains('is-open')) {
@@ -379,6 +403,16 @@ export function registerMapFilterMenu(container: HTMLElement, title: string) {
             root.hidden = !visible;
             if (!visible) setOpen(false);
         },
+        open() {
+            const show = () => {
+                if (root.hidden) return;
+                setOpen(true);
+                panel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            };
+            show();
+            // Re-apply after the click that switched maps finishes bubbling.
+            setTimeout(show, 0);
+        },
     };
 }
 
@@ -393,7 +427,7 @@ export function registerPolicyFilterMenu(opts: {
     const state = cloneState(defaults);
     const syncers: (() => void)[] = [];
     const syncAll = () => syncers.forEach((f) => f());
-    const menu = registerMapFilterMenu(container, 'Filter policies');
+    const menu = registerMapFilterMenu(container, 'Filter policies', 'policies');
     const { panel, resetBtn } = menu;
 
     const techLabels = firstSeen(rows, 'Technology_type', (v) => v, '');

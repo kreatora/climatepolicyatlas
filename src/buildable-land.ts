@@ -466,7 +466,7 @@ function renderAboutNote() {
             <li><strong>Full Screening:</strong> All of the above, plus OpenStreetMap buildings and settlements, water, forest, and slopes &gt; 20° where elevation data exists. Green = eligible; grey = excluded.</li>
             ${promotedBullet}
             <li><strong>Map styles:</strong> Land availability (green/grey) and Exclusion zones (red) use the same baked cells with different colours.</li>
-            <li><strong>World view:</strong> Choropleth of eligible share by country. <strong>Country detail:</strong> stacked regional PNG overlays — pre-baked rasters, not live OSM; 250&nbsp;m cells show patterns, not individual buildings.</li>
+            <li><strong>World view:</strong> Choropleth of eligible share by country. <strong>Country detail:</strong> stacked regional PNG overlays. Pre-baked rasters, not live OSM; 250&nbsp;m cells show patterns, not individual buildings.</li>
         </ul>
         ${styleOpt ? `<strong>${escapeHtml(styleOpt.label)}:</strong> ${escapeHtml(buildStyleHint(activeStyle, countryIso2))}` : ''}
     `;
@@ -537,7 +537,7 @@ function renderStats() {
     const items: Array<{ value: string; label: string }> = [
         { value: String(Object.keys(DATA_COUNTRIES).length), label: 'Countries with rule data' },
         { value: String(matching.length), label: 'Regions with land map' },
-        { value: matching.length > 0 ? `${(fraction * 100).toFixed(1)}%` : '—',
+        { value: matching.length > 0 ? `${(fraction * 100).toFixed(1)}%` : 'n/a',
           label: `${MODEL_SHORT[activeModel]} share (weighted)` },
     ];
     if (technicalAvailable && matching.length > 0 && activeModel === 'policy') {
@@ -559,7 +559,7 @@ function renderStats() {
         });
     }
     items.push({
-        value: matching.length > 0 ? `${Math.round(totalBuildableKm2).toLocaleString()} km²` : '—',
+        value: matching.length > 0 ? `${Math.round(totalBuildableKm2).toLocaleString()} km²` : 'n/a',
         label: `${MODEL_SHORT[activeModel]} area`,
     });
 
@@ -710,7 +710,7 @@ function renderEligibleShareLegend(
     legend.append('text').attr('x', 125).attr('y', -6)
         .attr('text-anchor', 'middle')
         .style('font-size', '10px').style('fill', '#475569').style('font-weight', '600')
-        .text(`${TECH_LABEL[activeTech]} — ${MODEL_SHORT[activeModel]}`);
+        .text(`${TECH_LABEL[activeTech]}: ${MODEL_SHORT[activeModel]}`);
 }
 
 function polylabelCentroid(d: any, projection: d3.GeoProjection): [number, number] | null {
@@ -1084,7 +1084,7 @@ async function overlayRasterIfBaked(
             .attr('x', 12).attr('y', 22)
             .style('font-size', '12px').style('font-weight', '600')
             .style('fill', C_PRIMARY)
-            .text(`${TECH_LABEL[activeTech]} · ${MODE_LABEL[activeMode]} — map not available yet.`);
+            .text(`${TECH_LABEL[activeTech]} · ${MODE_LABEL[activeMode]}: map not available yet.`);
         return;
     }
 
@@ -1202,7 +1202,7 @@ async function loadAndRenderRules(meta: { iso2: string; nutsPrimary: string; nam
 
     if (!sidecar) {
         panel.innerHTML = `
-            <h4>${escapeHtml(meta.name)} — ${TECH_LABEL[activeTech]} rules</h4>
+            <h4>${escapeHtml(meta.name)}: ${TECH_LABEL[activeTech]} rules</h4>
             <p class="bl-sub">Land map not available for this country yet.</p>
         `;
         return;
@@ -1215,13 +1215,13 @@ async function loadAndRenderRules(meta: { iso2: string; nutsPrimary: string; nam
     const technicalPending = activeModel === 'technical' && !sidecar.pixel_stats_technical;
 
     panel.innerHTML = `
-        <h4>${escapeHtml(meta.name)} — ${TECH_LABEL[activeTech]} rules (${applied.length})</h4>
+        <h4>${escapeHtml(meta.name)}: ${TECH_LABEL[activeTech]} rules (${applied.length})</h4>
         <p class="bl-sub">
             ${MODEL_LABEL[activeModel]} · ${MODE_LABEL[activeMode]}
             · ${MODEL_SHORT[activeModel]} <strong>${(eligibleShare * 100).toFixed(1)}%</strong>
             (${Math.round(stats.buildable_km2).toLocaleString()} km²)
             · turbine H=${sidecar.turbine_geometry.tip_height_m}m / blade=${sidecar.turbine_geometry.blade_length_m}m
-            ${technicalPending ? `<br><span style="color:${C_BRICK};">Technical layer still baking — showing policy data where needed.</span>` : ''}
+            ${technicalPending ? `<br><span style="color:${C_BRICK};">Technical layer still baking. Showing policy data where needed.</span>` : ''}
         </p>
         <div id="bl-applied-list">${applied.map(r => ruleCardHTML(r)).join('') || `<div class="bl-empty" style="min-height:80px;">No applicable spatial setbacks for this tech in this region.</div>`}</div>
         ${skipped.length > 0 ? `

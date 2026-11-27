@@ -188,8 +188,8 @@ export function openDataInfoModal(key: DatasetKey): void {
                     <p class="cpa-data-info-citation">${escapeHtml(meta.suggestedCitation)}</p>
                     <h3>License</h3>
                     <p class="cpa-data-info-license">
-                        <a href="${escapeAttr(meta.licenseUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(meta.license)}</a>
-                        — free to reuse with attribution.
+                        <a href="${escapeAttr(meta.licenseUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(meta.license)}</a>.
+                        Free to reuse with attribution.
                     </p>
                     ${notesHtml}
                     ${linksHtml}
@@ -240,7 +240,7 @@ export function updateMapDataAttribution(key: DatasetKey): void {
 
     footer.innerHTML = `
         <p class="map-data-source-line">
-            Data source: ${escapeHtml(meta.dataSource)} —
+            Data source: ${escapeHtml(meta.dataSource)}.
             <button type="button" class="map-data-learn-more">Learn more about this data</button>
         </p>
         <p class="map-data-citation-line">${escapeHtml(`${ATLAS_SITE_LABEL}/${meta.pageSlug}`)} | ${escapeHtml(meta.license)}</p>`;

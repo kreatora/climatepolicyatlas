@@ -53,7 +53,7 @@ const zenodoUrl = (id: string): string => `https://zenodo.org/records/${id}`;
 
 const DATASETS: Record<DatasetKey, DatasetMetadata> = {
     reSupport: {
-        dataSource: 'Climate Policy Atlas — Renewable electricity support instruments (2000–2024)',
+        dataSource: 'Climate Policy Atlas: Renewable electricity support instruments (2000–2024)',
         suggestedCitation:
             `Weko, S., Bold, F., Chaianong, A., Günkördü, D., Lebedeva, D., Malhotra, P., Milioritsas, I., Weiß, J., and Lilliestam, J. (2026): Data on policy support for renewable electricity (Version 1.1, July 2026). Friedrich-Alexander-Universität Erlangen-Nürnberg. DOI: 10.5281/zenodo.${ZENODO_RECORD_IDS.reSupport}`,
         license: 'CC BY 4.0',
@@ -72,7 +72,7 @@ const DATASETS: Record<DatasetKey, DatasetMetadata> = {
         ],
     },
     evSupport: {
-        dataSource: 'Climate Policy Atlas — Electric vehicle support instruments',
+        dataSource: 'Climate Policy Atlas: Electric vehicle support instruments',
         suggestedCitation:
             `Weko, S., Bold, F., Chaianong, A., Günkördü, D., Lebedeva, D., Malhotra, P., Milioritsas, I., Weiß, J., and Lilliestam, J. (2026): Data on policy support for electric vehicles (Version 1, January 2026). Friedrich-Alexander-Universität Erlangen-Nürnberg. DOI: 10.5281/zenodo.${ZENODO_RECORD_IDS.evSupport}`,
         license: 'CC BY 4.0',
@@ -87,7 +87,7 @@ const DATASETS: Record<DatasetKey, DatasetMetadata> = {
         ],
     },
     reTargets: {
-        dataSource: 'Climate Policy Atlas — Renewable energy targets (2020–2050)',
+        dataSource: 'Climate Policy Atlas: Renewable energy targets (2020–2050)',
         suggestedCitation:
             `Chaianong, A., Günkördü, D., Malhotra, P., Milioritsas, I., Weko, S., and Lilliestam, J. (2026): Data on renewable electricity targets (Version 3, July 2026). Sustainability Transition Policy Group, Friedrich-Alexander-Universität Erlangen-Nürnberg. DOI: 10.5281/zenodo.${ZENODO_RECORD_IDS.reTargets}.`,
         license: 'CC BY 4.0',
@@ -95,22 +95,35 @@ const DATASETS: Record<DatasetKey, DatasetMetadata> = {
         pageSlug: 'world-map',
         about:
             'Renewable electricity, renewable energy, and related targets by country, ' +
-            'including decision year and target year.',
+            'including decision year and target year. Maps and progression charts display the supplied normalized values.',
+        notes: [
+            'These are normalized targets to enable cross-country and temporal comparisons. Detailed formulas are presented in the dataset metadata.',
+            'Normalization focuses on all renewable technologies. Technology-specific targets are normalized only when they can be aggregated into an all-technology target.',
+            'Targets without normalized values appear in grey; available original values and target types remain accessible in the country details.',
+        ],
         relatedLinks: [
             { label: 'Zenodo dataset', url: zenodoUrl(ZENODO_RECORD_IDS.reTargets) },
             { label: 'Data page', url: 'data.html' },
         ],
     },
     climateTargets: {
-        dataSource: 'Climate Policy Atlas — Climate targets',
+        dataSource: 'Climate Policy Atlas: Climate targets',
         suggestedCitation:
             `Chaianong, A., Malhotra P., Milioritsas, I., Weko, S., and Lilliestam, J. (2026): Data on climate targets (Version 3, June 2026). Sustainability Transition Policy Group, Friedrich-Alexander-Universität Erlangen-Nürnberg. DOI: 10.5281/zenodo.${ZENODO_RECORD_IDS.climateTargets}.`,
         license: 'CC BY 4.0',
         licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
         pageSlug: 'world-map',
         about:
-            'National climate (emission reduction) targets in percent, as stated by each country. ' +
-            'Reference points differ (e.g. 1990, 2005 or business-as-usual), so values are not directly comparable.',
+            'National climate targets. The normalized value is the percent change in economy-wide greenhouse-gas emissions from 1990: negative is a reduction, positive is an increase, and zero is no change. The original value is the target as adopted, and the target type names its own reference.',
+        notes: [
+            'A normalized value is the percent change in economy-wide greenhouse-gas emissions from 1990. It is used so targets can be compared across countries and years. The formulas are in the dataset metadata.',
+            'Normalization uses economy-wide GHG emissions. Sector-specific and gas-specific targets are normalized only when they can be aggregated into an economy-wide target.',
+            'The original value is the target as adopted, in its stated unit. Target type names that target’s reference: baseline (a stated base year), BAU (a business-as-usual path), trajectory (an emissions level), or intensity (emissions per unit of activity). The reference is 1990 only when the base year is 1990.',
+            'The map colors values from −100% to +100% in bands of 25 percentage points. A value below −100% uses the strongest reduction color, and a value above +100% uses the strongest increase color. Exact 0% has its own color, because it is no change from 1990.',
+            'When a country has both an unconditional and a conditional target for the year used on the map, the map uses the unconditional target. A conditional target depends on support.',
+            'The year control is a horizon. 2020 means up to 2025, 2030 means the latest target by 2034, 2035 means the latest by 2039, and 2050 means the latest target. If the selected year has no target, the map uses the latest earlier one. Darker grey means no target by that year.',
+            'Light grey means the normalized value is missing. The original value and target type remain available.',
+        ],
         relatedLinks: [
             { label: 'Zenodo dataset', url: zenodoUrl(ZENODO_RECORD_IDS.climateTargets) },
             { label: 'Data page', url: 'data.html' },
@@ -118,7 +131,7 @@ const DATASETS: Record<DatasetKey, DatasetMetadata> = {
     },
     buildCodes: {
         dataSource:
-            'Climate Policy Atlas — Landscape and environmental regulations for energy production and infrastructure',
+            'Climate Policy Atlas: Landscape and environmental regulations for energy production and infrastructure',
         suggestedCitation: REGULATIONS_CITATION,
         license: 'CC BY 4.0',
         licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
@@ -129,7 +142,7 @@ const DATASETS: Record<DatasetKey, DatasetMetadata> = {
             'filtered by active status for the map metric (regulation balance: constraining minus promoting).',
         notes: [
             'Map colours show regulation balance (constraining minus promoting) among active rules.',
-            'Demo visualisations — values are taken verbatim from the dataset.',
+            'Demo visualisations: values are taken verbatim from the dataset.',
             'Inactive and overwritten rules are excluded from the map metric.',
         ],
         relatedLinks: [
@@ -154,14 +167,14 @@ const DATASETS: Record<DatasetKey, DatasetMetadata> = {
         notes: [
             'Policy Only: setback rules on landuse=residential (regulatory view).',
             'Full Screening: building footprints, settlement areas, water, forest, nature, slope, plus rules.',
-            'Neither model matches Tröndle et al. (2.5 m settlements, CORINE land cover) — compare as benchmark only.',
+            'Neither model matches Tröndle et al. (2.5 m settlements, CORINE land cover). Compare as a benchmark only.',
             'Re-bake rasters after pipeline updates: python scripts/build_buildable_rasters.py --overwrite',
         ],
         relatedLinks: [
             { label: 'Zenodo dataset (regulations)', url: zenodoUrl(ZENODO_RECORD_IDS.regulations) },
             { label: 'Data page', url: 'data.html' },
             {
-                label: 'Tröndle et al. — technical potential maps (comparison)',
+                label: 'Tröndle et al.: technical potential maps (comparison)',
                 url: 'https://timtroendle.github.io/possibility-for-electricity-autarky-map/',
             },
             {

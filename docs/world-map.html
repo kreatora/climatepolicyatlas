@@ -216,6 +216,79 @@
             min-width: 1.2em;
             text-align: center;
         }
+        .map-choropleth-legend.is-climate-targets {
+            width: 250px;
+            max-width: min(250px, calc(100% - 24px));
+            padding: 12px;
+        }
+        .is-climate-targets .map-choropleth-legend-title {
+            font-size: 12px;
+        }
+        .is-climate-targets .map-choropleth-legend-title span {
+            font-weight: 400;
+        }
+        .climate-legend-direction, .climate-legend-ticks, .climate-legend-overflow {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            color: #334155;
+            font-size: 11px;
+        }
+        .climate-legend-direction { margin-bottom: 5px; }
+        .climate-legend-bins {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            height: 10px;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .climate-legend-ticks { margin-top: 4px; font-weight: 700; }
+        .climate-legend-overflow { margin-top: 10px; }
+        .climate-legend-overflow span, .climate-legend-missing {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .climate-legend-overflow i, .climate-legend-missing i {
+            display: inline-block;
+            width: 12px;
+            height: 10px;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+        .climate-legend-missing { margin-top: 7px; font-size: 11px; color: #475569; }
+        .target-value-legend {
+            display: flex;
+            align-items: center;
+            gap: 22px;
+            flex: 0 0 40px;
+            padding: 6px 18px 0;
+        }
+        .target-value-legend button {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            min-height: 30px;
+            padding: 3px 4px;
+            border: 0;
+            background: transparent;
+            color: #64748b;
+            opacity: 0.5;
+            font: inherit;
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: line-through;
+        }
+        .target-value-legend button.is-active {
+            color: #334155;
+            opacity: 1;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .target-value-legend button:hover { opacity: 1; }
+        .target-value-legend button:focus-visible { outline: 2px solid #238b6b; outline-offset: 2px; border-radius: 3px; }
+        .target-value-legend-line { width: 20px; height: 3px; background: #475569; }
+        .target-value-legend button.is-active .target-value-legend-line { background: #238b6b; }
         .regulations-filter-group {
             flex: 0 0 auto;
         }
@@ -766,9 +839,9 @@
             display: block;
         }
     </style>
-  <script type="module" crossorigin src="./assets/worldMap.JMNzSiRc.js"></script>
+  <script type="module" crossorigin src="./assets/worldMap.DCoptF5Q.js"></script>
   <link rel="modulepreload" crossorigin href="./assets/input.CqUapxe5.js">
-  <link rel="modulepreload" crossorigin href="./assets/dataset-download.B2mTkodU.js">
+  <link rel="modulepreload" crossorigin href="./assets/dataset-download.hH9gG1nN.js">
   <link rel="stylesheet" crossorigin href="./assets/main.2kTsptRG.css">
   <link rel="stylesheet" crossorigin href="./assets/shared.BoYeBbxS.css">
   <meta name="description" content="Interactive map of climate and energy policy: renewable electricity support, electric vehicle support, renewable energy and emission reduction targets, and siting regulations by country.">
